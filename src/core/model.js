@@ -87,7 +87,9 @@ export function formatNumber(n) {
 function childContext(ctx, key) {
   switch (ctx) {
     case 'root':
-      return { meta: 'meta', view: 'view', style: 'style', layers: 'layers', pois: 'poiList', links: 'linkList' }[key] || null;
+      return { meta: 'meta', view: 'view', terrain: 'terrain', style: 'style', layers: 'layers', pois: 'poiList', links: 'linkList' }[key] || null;
+    case 'terrain':
+      return key === 'sections' ? 'terrainSections' : null;
     case 'view':
       return { bounds: 'bounds', background: 'background', grid: 'grid' }[key] || null;
     case 'background':

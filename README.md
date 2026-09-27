@@ -180,6 +180,27 @@ An agent never needs the browser: read and edit `map.json` directly, then
 See [docs/AGENT.md](docs/AGENT.md) for the rules (ids, key order, `x_` fields)
 and a programmatic example.
 
+## Terrain calculator (Unreal Mesh Terrain)
+
+Unreal's Mesh Terrain (MeshPartition *Create Rectangle* / *Import Heightmap*)
+asks for a mesh size, a resolution (quads per axis) and a section split. The
+**Terrain** panel (top bar, `T`) works these out for your map:
+
+- the mesh size is the map's bounds, in world units (cm);
+- pick a quad size (25 cm … 8 m presets, or any value) or type the resolution;
+  the panel shows the resulting quad size, grid, triangles and vertices;
+- sections: *Automatic* (max triangles per section — the layout is an estimate)
+  or *Explicit* (layout × section resolution, which sets the total resolution);
+- height range (Z) for *Import Heightmap* and the heightmap / mask size that
+  lines up with the grid (resolution + 1 px, one pixel per vertex);
+- a block with the exact values to type into Unreal (copy button), a table of
+  quad-size options for this map, a button that exports masks at the grid
+  size, and an optional overlay of the sections (and quads when zoomed in) on
+  the map.
+
+The chosen grid is saved in `map.json → terrain`, so an agent reads the same
+numbers (`node tools/ilumap.mjs terrain map.json`).
+
 ## Masks for Gaea, World Machine and Unreal
 
 Masks are 8-bit greyscale PNGs covering `view.bounds` (or `--bounds`), white =
@@ -220,7 +241,7 @@ The editor has the same export under **Export → Masks…** (top bar).
 | `Ctrl+S` / `Ctrl+Shift+S` / `Ctrl+O` | Save to map.json / save as / open a map.json as a local map |
 | `Ctrl+B` · `Ctrl+K` · `Ctrl+,` | Show / hide the sidebar · search local maps · settings (language, theme) |
 | `G` · `/` · `?` · `F2` | Grid · search POIs · help · rename the map |
-| `[` · `]` | Layers panel · right sidebar |
+| `[` · `]` · `T` | Layers panel · right sidebar · Terrain calculator |
 
 ## Development
 

@@ -1,6 +1,6 @@
 // Floating pills around the canvas:
 //   top-left     map name (inline rename) + save, unsaved dot, file-link tooltip
-//   top-centre   Layers panel toggle, grid / labels / background toggles, Export menu
+//   top-centre   Layers + Terrain panel toggles, grid / labels / background toggles, Export menu
 //   top-right    undo / redo, right sidebar toggle
 //   bottom-right snap + flipY toggles, zoom − / % / +, fit, shortcuts, settings; cursor read-out above
 //   bottom-centre (above the dock) tool hint / status HUD
@@ -82,6 +82,8 @@ export function mountPanelToggles({ panels }) {
   const root = document.getElementById('panel-toggles');
   const layersLabel = h('span', {});
   const layers = h('button', { type: 'button', class: 'pill-btn', 'aria-pressed': 'false', onclick: () => panels.layers.toggle() }, icon('layers'), layersLabel);
+  const terrainLabel = h('span', {});
+  const terrain = h('button', { type: 'button', class: 'pill-btn', 'aria-pressed': 'false', onclick: () => panels.terrain.toggle() }, icon('terrain'), terrainLabel);
 
   const grid = h('button', { type: 'button', class: 'icon-btn toggle', onclick: () => change((d) => { d.view.grid.visible = !(d.view.grid.visible !== false); }) }, icon('grid'));
   const labels = h('button', {
@@ -118,7 +120,7 @@ export function mountPanelToggles({ panels }) {
     ], { anchor: exp, align: 'end' });
   };
   exp.addEventListener('click', openExport);
-  root.append(layers, h('span', { class: 'pill-sep' }), grid, labels, bg, h('span', { class: 'pill-sep' }), exp);
+  root.append(layers, terrain, h('span', { class: 'pill-sep' }), grid, labels, bg, h('span', { class: 'pill-sep' }), exp);
 
   const titled = [[grid, 'toolbar.grid', ''], [labels, 'toolbar.labels', ''], [bg, 'toolbar.background', '']];
   const relabel = () => {
@@ -127,6 +129,9 @@ export function mountPanelToggles({ panels }) {
     layersLabel.textContent = label;
     layers.title = t('panels.toggleKey', { panel: label, key: '[' });
     layers.setAttribute('aria-label', label);
+    terrainLabel.textContent = t('terrain.button');
+    terrain.title = t('terrain.buttonTitle');
+    terrain.setAttribute('aria-label', t('terrain.title'));
     for (const [b, key, kbd] of titled) { b.title = `${t(key)}${kbd}`; b.setAttribute('aria-label', t(key)); }
     expLabel.textContent = t('export.button');
     exp.title = t('export.title');
@@ -139,6 +144,9 @@ export function mountPanelToggles({ panels }) {
     const lo = panels.layers.isOpen();
     layers.classList.toggle('on', lo);
     layers.setAttribute('aria-pressed', String(lo));
+    const to = panels.terrain.isOpen();
+    terrain.classList.toggle('on', to);
+    terrain.setAttribute('aria-pressed', String(to));
     const g = store.doc.view.grid?.visible !== false;
     grid.classList.toggle('on', g);
     grid.setAttribute('aria-pressed', String(g));

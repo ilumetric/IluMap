@@ -12,6 +12,7 @@ import { mountPoiList } from './panels/poi-list.js';
 import { mountInspector } from './panels/inspector.js';
 import { mountMapSettings } from './panels/map.js';
 import { mountStyle } from './panels/style.js';
+import { mountTerrain } from './panels/terrain.js';
 import { removeById, zoneOf } from '../core/model.js';
 import { $, h, isTyping, openDialog, toast } from './dom.js';
 import { createPanel, clampFloatingPanels } from './ui/floating-panel.js';
@@ -39,6 +40,7 @@ const canvas = new Canvas($('#stage'), { getTool: () => TOOLS[store.tool] });
 const rightbar = mountRightbar();
 const panels = {
   layers: createPanel({ id: 'layers', titleKey: 'panels.layers.title', icon: 'layers', dock: 'left', width: 272 }),
+  terrain: createPanel({ id: 'terrain', titleKey: 'terrain.title', icon: 'terrain', dock: 'left', width: 320 }),
 };
 
 mountLayers(panels.layers.body, { canvas });
@@ -47,8 +49,9 @@ const mapSettings = h('div', { class: 'map-settings' });
 mountMapSettings(mapSettings, { canvas });
 mountInspector(rightbar.inspectorBody, { canvas, mapSettings });
 mountStyle(rightbar.styleBody);
+mountTerrain(panels.terrain.body, { canvas });
 
-on('open-panel', (id) => (id === 'layers' ? panels.layers.open() : rightbar.show(id)));
+on('open-panel', (id) => (panels[id] ? panels[id].open() : rightbar.show(id)));
 
 // --- tools -------------------------------------------------------------------------
 function activateTool(id) {
@@ -169,6 +172,7 @@ document.addEventListener('keydown', (e) => {
       change((d) => { d.view.grid.visible = !(d.view.grid.visible !== false); });
       break;
     case 'f': case 'F': canvas.fit(); break;
+    case 't': case 'T': panels.terrain.toggle(); break;
     case '+': case '=': canvas.zoomBy(1.4); break;
     case '-': case '_': canvas.zoomBy(1 / 1.4); break;
     case '?': showHelp(); break;
@@ -229,6 +233,7 @@ function showHelp() {
     ['G', 'grid'],
     ['/', 'searchPois'],
     ['[ / ]', 'panels'],
+    ['T', 'terrain'],
     ['F2', 'rename'],
   ];
   const table = h('table', { class: 'keys' }, rows.map(([k, v]) => h('tr', {}, h('td', {}, h('kbd', {}, k)), h('td', {}, t(`shortcuts.${v}`)))));

@@ -182,7 +182,7 @@ async function pngBlobFromGrey(m) {
   }
 }
 
-export async function exportMasks(scope = 'all') {
+export async function exportMasks(scope = 'all', { size = null } = {}) {
   const s = exportScope(scope);
   if (!s) return;
   // a selection keeps the full map bounds so its masks line up with the whole-map heightmap
@@ -193,7 +193,7 @@ export async function exportMasks(scope = 'all') {
     message: t(s.selection ? 'dialogs.masks.messageSelection' : 'dialogs.masks.message'),
     fields: [
       { name: 'source', label: t('dialogs.masks.source'), type: 'select', value: store.prefs.maskSource || 'land', options: [...sources.map((s) => [s, maskSourceLabel(s)]), ['feature', t('dialogs.masks.sourceFeature')]] },
-      { name: 'size', label: t('dialogs.masks.size'), type: 'number', value: store.prefs.maskSize || 2048, min: 16, max: 16384, step: 1 },
+      { name: 'size', label: t('dialogs.masks.size'), type: 'number', value: size || store.prefs.maskSize || 2048, min: 16, max: 16384, step: 1 },
       { name: 'feather', label: t('dialogs.masks.feather'), type: 'number', value: 0, min: 0, max: 256, step: 1 },
       { name: 'stroke', label: t('dialogs.masks.stroke'), type: 'number', value: '', min: 0, step: 'any' },
       { name: 'invert', label: t('dialogs.masks.invert'), type: 'checkbox', value: false },

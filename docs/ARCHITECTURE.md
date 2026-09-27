@@ -68,8 +68,9 @@ src/
                         stored/zlib in browser or <canvas> fallback)
     text-export.js      map.json -> markdown/plain text summary for agents
     styles.js           style presets (graphite, blueprint, parchment) and defaults
+    terrain.js          Unreal Mesh Terrain grid calculator (resolution, quads, sections)
 tools/
-  ilumap.mjs            CLI: validate | text | svg | mask | fmt | list
+  ilumap.mjs            CLI: validate | text | svg | mask | terrain | fmt | list
 schema/map.schema.json  JSON Schema (draft 2020-12) of the map format
 examples/demo/map.json  reference map (40 km archipelago, 7 POIs incl. village,
                         mine_old, city_riverport and one unplaced POI)
@@ -307,6 +308,21 @@ panels, `F2` rename, arrows nudge the selection. Grid snapping follows the
 magnet toggle (bottom right); holding `Shift` inverts it while drawing or
 dragging. A feature must be selected before a drag moves it (so a
 click on a big island never moves it by accident); POIs move immediately.
+
+## Terrain grid (`src/core/terrain.js`)
+
+Calculator for Unreal Engine Mesh Terrain. `terrainOf(doc)` returns the stored
+`terrain` block or defaults (1 m quads, doubled until a side has at most 4096
+quads; automatic sections, 524288 triangles). `computeTerrain(doc)` derives
+the size (from `view.bounds`), quad size, vertex / triangle counts, the
+section layout (explicit, or an estimate with square sections in automatic
+mode), the heightmap size (resolution + 1 per axis) and warnings.
+`quadOptions`, `resolutionForQuad`, `explicitFor`, `autoSections`,
+`terrainBlock` (canonical block to store) and `unrealSettingsText` (values to
+type into Unreal) are shared by the Terrain panel (`panels/terrain.js`), the
+canvas overlay (`canvas.renderTerrainOverlay`, a UI pref) and the CLI
+`terrain` command. The text export adds a "Terrain grid" line when the map
+has a `terrain` block.
 
 ## Exports
 

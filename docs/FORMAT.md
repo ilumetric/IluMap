@@ -12,6 +12,7 @@ add their own fields under an `x_` prefix (e.g. `x_questGiver`).
 | `version` | `1` | format version, bumped on breaking changes |
 | `meta` | object | world metadata |
 | `view` | object | background image, calibration, bounds, grid |
+| `terrain` | object, optional | Unreal Mesh Terrain grid (resolution, sections, height range) |
 | `style` | object | colours and per-type styling |
 | `layers` | object | `land`, `water`, `coast`, `rivers`, `roads`, `rails`, `walls`, `zones` — each an array of Feature |
 | `pois` | array | points of interest |
@@ -45,6 +46,34 @@ add their own fields under an `x_` prefix (e.g. `x_questGiver`).
   "grid": { "step": 10000, "visible": true }
 }
 ```
+
+## `terrain` (optional)
+
+The Unreal Engine **Mesh Terrain** grid chosen with the Terrain calculator
+(editor: top bar → *Terrain*, `T`; CLI: `terrain`). The mesh size is not
+stored here: it is the size of `view.bounds`, in world units.
+
+```jsonc
+"terrain": {
+  "target": "ue-mesh-terrain",
+  "resolution": [1000, 1000],          // quads per axis — Unreal "Mesh / Resolution"
+  "sections": {                        // Unreal "Sections"
+    "mode": "automatic",               // "automatic" | "explicit"
+    "maxTriangles": 524288             // automatic: triangles per section
+  },
+  "heightRange": 25600                 // Z size for "Import Heightmap", world units
+}
+// explicit sections:
+"sections": { "mode": "explicit", "layout": [4, 4], "resolution": [256, 256] }
+```
+
+* One quad = `(bounds.max − bounds.min) / resolution` on each axis.
+* Explicit sections: the total resolution is `layout × sections.resolution`;
+  the editor writes it into `resolution` too (a mismatch is a warning).
+* Automatic sections: Unreal decides the split. The editor and CLI show an
+  estimate with square sections of at most `maxTriangles` triangles.
+* A heightmap or mask for this grid has `resolution + 1` pixels per axis (one
+  pixel per vertex).
 
 ## `style`
 

@@ -5,6 +5,7 @@ import {
   distance, bearing, compass8, polylineLength, polygonArea, featureGeometry, nearestPointOnPolyline, wallLayout,
 } from './geometry.js';
 import { zoneOf, isLand, waterAt, findById } from './model.js';
+import { computeTerrain } from './terrain.js';
 
 /**
  * Length in world units -> "1.2 km" / "350 m" / "12 cm" using meta.displayUnit(Scale).
@@ -100,6 +101,11 @@ export function toText(doc, opts = {}) {
   const hgt = bd.max[1] - bd.min[1];
   out.push(`- Extent: ${L(w)} × ${L(hgt)} (x ${fmtCoord(bd.min[0])}…${fmtCoord(bd.max[0])}, y ${fmtCoord(bd.min[1])}…${fmtCoord(bd.max[1])} ${meta.units || 'cm'}); 1 ${meta.displayUnit || 'm'} = ${meta.displayUnitScale ?? 100} ${meta.units || 'cm'}.`);
   out.push(`- Orientation: north is ${flipY ? '+y' : '−y'} (flipY: ${flipY}). Land mode: ${meta.landMode || 'islands'}.`);
+  if (doc.terrain) {
+    const tc = computeTerrain(doc);
+    const sec = tc.sections;
+    out.push(`- Terrain grid (Unreal Mesh Terrain): ${tc.resolution[0]} × ${tc.resolution[1]} quads, one quad ${L(tc.quad[0])}${tc.square ? '' : ` × ${L(tc.quad[1])}`}; sections ${sec.mode}${sec.estimated ? ' (estimated)' : ''} ${sec.layout[0]} × ${sec.layout[1]} of ${sec.resolution[0]} × ${sec.resolution[1]} quads (${L(sec.size[0])} each); heightmap ${tc.heightmap.width} × ${tc.heightmap.height} px, Z range ${L(tc.heightRange)}.`);
+  }
   out.push(`- Contents: ${doc.pois.length} POIs (${unplaced.length} unplaced), ${featureCount} features, ${doc.links.length} links.`);
   out.push('');
 

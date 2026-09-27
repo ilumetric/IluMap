@@ -30,7 +30,10 @@ function defaultPrefs() {
     // floating panels (only Layers): { open, pos: null | {x, y} } (pos = dragged out of its dock column)
     panels: {
       layers: { open: true, pos: null },
+      terrain: { open: false, pos: null },
     },
+    terrainOverlay: false, // draw Mesh Terrain sections (and quads when zoomed in) on the map
+    terrainSquare: true, // keep terrain quads square when editing the resolution
     sidebarOpen: true,
     rightbarOpen: true, // docked right sidebar: POIs on top, Inspector / Style tabs below
     rightTab: 'inspector',

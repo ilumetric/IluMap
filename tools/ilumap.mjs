@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// IluMap command line: validate | text | svg | mask | fmt | list
+// IluMap command line: validate | text | svg | mask | terrain | fmt | list
 // No dependencies; imports the same core modules as the browser app.
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
@@ -11,6 +11,9 @@ import { toText } from '../src/core/text-export.js';
 import { renderSvg } from '../src/core/render-svg.js';
 import { renderMask, maskFileName, maskSidecar, stringifySidecar, zoneTypes } from '../src/core/render-mask.js';
 import { encodePng } from '../src/core/png.js';
+import {
+  terrainOf, computeTerrain, terrainBlock, resolutionForQuad, explicitFor, quadOptions, unrealSettingsText, terrainSize,
+} from '../src/core/terrain.js';
 
 const HELP = `IluMap CLI — map.json tools (no dependencies)
 
@@ -41,6 +44,17 @@ Commands:
       --stroke <units>         line width override in world units (lines only)
       --split                  with --source zones: one file per zone type
       --out <dir>              output directory (default .); writes masks.json next to the PNGs
+  terrain <map>              Unreal Mesh Terrain grid calculator: size (from view.bounds), resolution,
+                             quad size, sections, heightmap size, values to type into Unreal.
+      --quad <units>           pick the resolution that gives quads of this size (e.g. 100 = 1 m)
+      --resolution x,y         quads per axis (Mesh → Resolution)
+      --sections <mode>        automatic | explicit
+      --max-triangles <n>      automatic sections: triangles per section (default 524288)
+      --layout x,y             explicit sections per axis
+      --section-res x,y        explicit quads per section (layout is derived with --quad/--resolution)
+      --height-range <units>   Z size for Import Heightmap (default 25600)
+      --write                  store the result in map.json (terrain block)
+      --json                   JSON output
   fmt <map>                  Rewrite the file in canonical format (key order, one [x, y] per line).
       --check                  do not write; exit 1 if the file is not canonical
       --stdout                 print instead of writing
@@ -56,6 +70,7 @@ Examples:
   node tools/ilumap.mjs mask examples/demo/map.json --source land --size 4096 --out masks/
   node tools/ilumap.mjs mask examples/demo/map.json --source zones --split --out masks/
   node tools/ilumap.mjs list examples/demo/map.json --pois --status approved
+  node tools/ilumap.mjs terrain examples/demo/map.json --quad 400 --sections explicit --section-res 256,256
 `;
 
 function parseArgs(argv) {
@@ -69,7 +84,7 @@ function parseArgs(argv) {
       let key = eq > 0 ? a.slice(2, eq) : a.slice(2);
       let val = eq > 0 ? a.slice(eq + 1) : undefined;
       if (key.startsWith('no-')) { opts[key.slice(3)] = false; continue; }
-      const takesValue = ['nearest', 'out', 'width', 'height', 'padding', 'layers', 'source', 'size', 'bounds', 'feather', 'stroke', 'status', 'type', 'zone', 'layer'].includes(key);
+      const takesValue = ['nearest', 'out', 'width', 'height', 'padding', 'layers', 'source', 'size', 'bounds', 'feather', 'stroke', 'status', 'type', 'zone', 'layer', 'quad', 'resolution', 'sections', 'max-triangles', 'layout', 'section-res', 'height-range'].includes(key);
       if (takesValue && val === undefined) {
         val = argv[++i];
         if (val === undefined) throw new Error(`--${key} needs a value`);
@@ -108,7 +123,70 @@ function output(text, out) {
   } else process.stdout.write(text);
 }
 
+function intPair(v, name) {
+  if (v === undefined) return undefined;
+  const p = String(v).split(/[,x×]/).map((s) => Number(s.trim()));
+  if (p.length === 1) p.push(p[0]);
+  if (p.length !== 2 || !p.every((n) => Number.isInteger(n) && n > 0)) throw new Error(`--${name} must be two positive integers, e.g. 4,4`);
+  return p;
+}
+
 const commands = {
+  terrain(file, o) {
+    const { json } = readMap(file);
+    const doc = normalize(json);
+    const t = terrainOf(doc);
+    const size = terrainSize(doc);
+    if (o.sections !== undefined) {
+      if (o.sections !== 'automatic' && o.sections !== 'explicit') throw new Error('--sections must be automatic or explicit');
+      if (o.sections !== t.sections.mode) t.sections = o.sections === 'explicit' ? { mode: 'explicit', layout: [4, 4], resolution: [256, 256] } : { mode: 'automatic', maxTriangles: 524288 };
+    }
+    let res = t.resolution;
+    if (o.quad !== undefined) res = resolutionForQuad(size, num(o.quad, 'quad'));
+    if (o.resolution !== undefined) res = intPair(o.resolution, 'resolution');
+    if (t.sections.mode === 'explicit') {
+      const secRes = intPair(o['section-res'], 'section-res') || t.sections.resolution;
+      const layout = intPair(o.layout, 'layout');
+      t.sections = layout ? { mode: 'explicit', layout, resolution: secRes } : { mode: 'explicit', ...explicitFor(res, secRes) };
+      t.resolution = [t.sections.layout[0] * t.sections.resolution[0], t.sections.layout[1] * t.sections.resolution[1]];
+    } else {
+      t.resolution = res;
+      if (o['max-triangles'] !== undefined) t.sections.maxTriangles = Math.round(num(o['max-triangles'], 'max-triangles'));
+    }
+    if (o['height-range'] !== undefined) t.heightRange = num(o['height-range'], 'height-range');
+    const block = terrainBlock(t);
+    const c = computeTerrain(doc, block);
+    if (o.write) {
+      doc.terrain = block;
+      const r = validate(doc);
+      if (!r.ok) throw new Error(r.errors.map((e) => `${e.path}: ${e.message}`).join('; '));
+      writeFileSync(file, serialize(doc));
+      process.stderr.write(`wrote terrain block to ${file}\n`);
+    }
+    if (o.json) { process.stdout.write(`${JSON.stringify({ terrain: block, computed: c, options: quadOptions(doc) }, null, 2)}\n`); return 0; }
+    const u = doc.meta.units || 'cm';
+    const f = (n) => (Math.round(n * 100) / 100).toLocaleString('en-US');
+    const lines = [
+      `${doc.meta.name || 'Untitled'} — Unreal Mesh Terrain grid${json.terrain ? '' : ' (not set in map.json yet; defaults shown)'}`,
+      '',
+      `Size          ${f(c.size[0])} × ${f(c.size[1])} ${u}`,
+      `Resolution    ${c.resolution[0]} × ${c.resolution[1]} quads`,
+      `Quad          ${f(c.quad[0])} × ${f(c.quad[1])} ${u}${c.square ? '' : '  (not square!)'}`,
+      `Mesh          ${c.vertices.toLocaleString('en-US')} vertices, ${c.triangles.toLocaleString('en-US')} triangles`,
+      `Sections      ${c.sections.mode}${c.sections.estimated ? ' (estimate)' : ''}: ${c.sections.layout[0]} × ${c.sections.layout[1]} = ${c.sections.count}, `
+        + `${c.sections.resolution[0]} × ${c.sections.resolution[1]} quads each (${f(c.sections.size[0])} × ${f(c.sections.size[1])} ${u}), ${c.sections.trianglesPerSection.toLocaleString('en-US')} triangles each`,
+      `Heightmap     ${c.heightmap.width} × ${c.heightmap.height} px (one pixel per vertex), Z range ${f(c.heightRange)} ${u}, 16-bit step ${f(c.zStep)} ${u}`,
+      ...(c.warnings.length ? [`Warnings      ${c.warnings.join(', ')}`] : []),
+      '',
+      unrealSettingsText(c).trimEnd(),
+      '',
+      'Quad size options (automatic sections):',
+      ...quadOptions(doc).map((r) => `  ${String(r.quadTarget).padStart(4)} ${u} → ${r.resolution[0]} × ${r.resolution[1]} quads, ${r.triangles.toLocaleString('en-US')} triangles, ~${r.sections.count} sections`),
+    ];
+    process.stdout.write(`${lines.join('\n')}\n`);
+    return 0;
+  },
+
   validate(file, o) {
     const { json } = readMap(file);
     const raw = validate(json);

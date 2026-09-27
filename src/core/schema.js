@@ -57,7 +57,9 @@ export const LAYER_ID_PREFIX = {
  * emitted after the known ones, in their original order.
  */
 export const KEY_ORDER = {
-  root: ['format', 'version', 'meta', 'view', 'style', 'layers', 'pois', 'links'],
+  root: ['format', 'version', 'meta', 'view', 'terrain', 'style', 'layers', 'pois', 'links'],
+  terrain: ['target', 'resolution', 'sections', 'heightRange'],
+  terrainSections: ['mode', 'maxTriangles', 'layout', 'resolution'],
   meta: ['name', 'description', 'units', 'displayUnit', 'displayUnitScale', 'flipY', 'landMode'],
   view: ['bounds', 'background', 'grid'],
   bounds: ['min', 'max'],
@@ -238,6 +240,33 @@ export function validate(doc) {
   const zoneIds = new Set();
   const featureIds = new Set();
   const pointIds = new Set(); // POIs and gates: valid link endpoints
+
+  // terrain grid (UE Mesh Terrain calculator)
+  if (doc.terrain !== undefined) {
+    const tr = doc.terrain;
+    const intPair = (v) => Array.isArray(v) && v.length === 2 && v.every((n) => Number.isInteger(n) && n > 0);
+    if (!isObj(tr)) err('terrain', 'must be an object');
+    else {
+      if (tr.target !== undefined && tr.target !== 'ue-mesh-terrain') err('terrain.target', 'must be "ue-mesh-terrain"');
+      if (tr.resolution !== undefined && !intPair(tr.resolution)) err('terrain.resolution', 'must be [x, y] positive integers (quads per axis)');
+      if (tr.heightRange !== undefined && !(isNum(tr.heightRange) && tr.heightRange > 0)) err('terrain.heightRange', 'must be a positive number (world units)');
+      const s = tr.sections;
+      if (s !== undefined) {
+        if (!isObj(s)) err('terrain.sections', 'must be an object');
+        else if (s.mode !== 'automatic' && s.mode !== 'explicit') err('terrain.sections.mode', 'must be "automatic" or "explicit"');
+        else if (s.mode === 'automatic') {
+          if (s.maxTriangles !== undefined && !(Number.isInteger(s.maxTriangles) && s.maxTriangles > 0)) err('terrain.sections.maxTriangles', 'must be a positive integer');
+        } else {
+          if (!intPair(s.layout)) err('terrain.sections.layout', 'must be [x, y] positive integers (sections per axis)');
+          if (!intPair(s.resolution)) err('terrain.sections.resolution', 'must be [x, y] positive integers (quads per section)');
+          if (intPair(s.layout) && intPair(s.resolution) && intPair(tr.resolution)
+            && (tr.resolution[0] !== s.layout[0] * s.resolution[0] || tr.resolution[1] !== s.layout[1] * s.resolution[1])) {
+            warn('terrain.resolution', 'explicit sections give layout × section resolution; terrain.resolution differs and is ignored');
+          }
+        }
+      }
+    }
+  }
 
   // layers
   const layers = doc.layers;

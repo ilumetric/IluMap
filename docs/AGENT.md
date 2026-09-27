@@ -35,6 +35,19 @@ Edit `map.json` directly. Rules:
 * Reference POIs from lore by id (`mine_old`), never by name or index.
 * Custom fields go under an `x_` prefix and survive round-trips.
 
+## Terrain grid (Unreal Mesh Terrain)
+
+```bash
+node tools/ilumap.mjs terrain map.json                    # size, resolution, quad size, sections, values for Unreal
+node tools/ilumap.mjs terrain map.json --quad 200 --write # 2 m quads, store the grid in map.json
+node tools/ilumap.mjs terrain map.json --sections explicit --section-res 256,256 --quad 400 --write
+node tools/ilumap.mjs terrain map.json --json             # machine-readable
+```
+
+The grid lives in `map.json → terrain`; its size is the size of `view.bounds`.
+`text` mentions it in the header ("Terrain grid … one quad 2 m …"), so use it
+when you need real distances in quads or sections.
+
 ## Masks for heightmap generation (Gaea, World Machine, UE)
 
 ```bash

@@ -5,6 +5,7 @@
 
 import { store, on, emit, isLayerLocked, visibleLayers } from './state.js';
 import { renderParts, renderGrid, viewRectOfBounds, toView, fromView, esc } from '../core/render-svg.js';
+import { computeTerrain } from '../core/terrain.js';
 import { resolveStyle } from '../core/styles.js';
 import { fromPairs } from '../core/calibration.js';
 import { findById } from '../core/model.js';
@@ -21,6 +22,7 @@ export class Canvas {
     this.getTool = getTool;
     this.svg.innerHTML = '<defs id="cv-static"><clipPath id="cv-bounds-clip"><rect id="cv-clip-rect"/></clipPath></defs>'
       + '<defs id="cv-defs"></defs><g id="cv-world"><g id="cv-ocean"></g><g id="cv-bg"></g><g id="cv-grid" clip-path="url(#cv-bounds-clip)"></g>'
+      + '<g id="cv-terrain" clip-path="url(#cv-bounds-clip)" pointer-events="none"></g>'
       + '<g id="cv-bounds"></g><g id="cv-content"></g><g id="cv-overlay"></g><g id="cv-tool"></g></g>';
     this.g = {
       defs: this.svg.querySelector('#cv-defs'),
@@ -29,6 +31,7 @@ export class Canvas {
       world: this.svg.querySelector('#cv-world'),
       bg: this.svg.querySelector('#cv-bg'),
       grid: this.svg.querySelector('#cv-grid'),
+      terrain: this.svg.querySelector('#cv-terrain'),
       bounds: this.svg.querySelector('#cv-bounds'),
       content: this.svg.querySelector('#cv-content'),
       overlay: this.svg.querySelector('#cv-overlay'),
@@ -57,6 +60,7 @@ export class Canvas {
     on('layers', () => this.invalidate('content', 'overlay'));
     on('tool', () => { this.updateCursor(); this.invalidate('tool'); });
     on('background', () => this.invalidate('bg'));
+    on('terrain-overlay', () => this.invalidate('grid'));
     onLangChange(() => this.invalidate('grid', 'tool')); // scale bar and tool overlays carry text
   }
 
@@ -223,7 +227,56 @@ export class Canvas {
     for (const [k, v] of Object.entries({ x: r.x0, y: r.y0, width: r.x1 - r.x0, height: r.y1 - r.y0 })) this.g.clip.setAttribute(k, v);
     this.g.grid.innerHTML = doc.view.grid?.visible !== false ? renderGrid(doc, this.visibleViewRect(), { unitsPerPx: upp, resolvedStyle: rs }) : '';
     this.g.bounds.innerHTML = `<rect ${rect} fill="none" stroke="${rs.boundsColor}" stroke-width="${r2(1 * upp)}" stroke-dasharray="${r2(6 * upp)} ${r2(5 * upp)}" opacity="0.55"/>`;
+    this.renderTerrainOverlay();
     this.updateScaleBar();
+  }
+
+  /**
+   * Unreal Mesh Terrain grid on the map (Terrain panel toggle): section borders
+   * always, individual quads once a quad is at least 6 px on screen. Only the
+   * lines inside the visible part of the bounds are drawn.
+   */
+  renderTerrainOverlay() {
+    const g = this.g.terrain;
+    const doc = store.doc;
+    if (!store.prefs.terrainOverlay) { g.innerHTML = ''; return; }
+    const c = computeTerrain(doc);
+    const upp = this.unitsPerPx;
+    const b = doc.view.bounds;
+    const flip = !!doc.meta.flipY;
+    const r = viewRectOfBounds(doc);
+    const vis = this.visibleViewRect();
+    const x0 = Math.max(r.x0, vis.x0); const x1 = Math.min(r.x1, vis.x1);
+    const y0 = Math.max(r.y0, vis.y0); const y1 = Math.min(r.y1, vis.y1);
+    if (!(x0 < x1 && y0 < y1)) { g.innerHTML = ''; return; }
+    // visible world y range (view y is negated when flipY)
+    const wy0 = flip ? -y1 : y0;
+    const wy1 = flip ? -y0 : y1;
+    const vy = (wy) => (flip ? -wy : wy);
+    const lines = (stepX, stepY, max) => {
+      let d = '';
+      let n = 0;
+      const i0 = Math.ceil((x0 - b.min[0]) / stepX - 1e-9);
+      const i1 = Math.floor((x1 - b.min[0]) / stepX + 1e-9);
+      const j0 = Math.ceil((wy0 - b.min[1]) / stepY - 1e-9);
+      const j1 = Math.floor((wy1 - b.min[1]) / stepY + 1e-9);
+      if ((i1 - i0) + (j1 - j0) > max) return null;
+      for (let i = i0; i <= i1; i++) { const x = b.min[0] + i * stepX; d += `M${r2(x)} ${r2(y0)}V${r2(y1)}`; n++; }
+      for (let j = j0; j <= j1; j++) { const y = vy(b.min[1] + j * stepY); d += `M${r2(x0)} ${r2(y)}H${r2(x1)}`; n++; }
+      return n ? d : '';
+    };
+    let s = '';
+    if (c.quad[0] / upp >= 6 && c.quad[1] / upp >= 6) {
+      const d = lines(c.quad[0], c.quad[1], 4000);
+      if (d) s += `<path d="${d}" fill="none" style="stroke:var(--accent)" stroke-opacity="0.22" stroke-width="${r2(upp)}"/>`;
+    }
+    const sx = c.quad[0] * c.sections.resolution[0];
+    const sy = c.quad[1] * c.sections.resolution[1];
+    if (sx / upp >= 3 && sy / upp >= 3) {
+      const d = lines(sx, sy, 4000);
+      if (d) s += `<path d="${d}" fill="none" style="stroke:var(--accent)" stroke-opacity="0.8" stroke-width="${r2(1.5 * upp)}"${c.sections.estimated ? ` stroke-dasharray="${r2(6 * upp)} ${r2(4 * upp)}"` : ''}/>`;
+    }
+    g.innerHTML = s;
   }
 
   /** Current background transform in view space, or null. */

@@ -9,6 +9,7 @@
     "version": { "const": 1 },
     "meta": { "$ref": "#/$defs/meta" },
     "view": { "$ref": "#/$defs/view" },
+    "terrain": { "$ref": "#/$defs/terrain" },
     "style": { "$ref": "#/$defs/style" },
     "layers": { "$ref": "#/$defs/layers" },
     "pois": { "type": "array", "items": { "$ref": "#/$defs/poi" } },
@@ -16,6 +17,26 @@
   },
   "$defs": {
     "id": { "type": "string", "pattern": "^[a-z0-9_]+$" },
+    "terrain": {
+      "type": "object",
+      "description": "Grid picked with the Unreal Mesh Terrain calculator. Size comes from view.bounds; quad size = size / resolution.",
+      "properties": {
+        "target": { "const": "ue-mesh-terrain" },
+        "resolution": { "$ref": "#/$defs/intPair", "description": "Quads per axis (Mesh / Resolution). In explicit mode = layout x section resolution." },
+        "sections": {
+          "type": "object",
+          "required": ["mode"],
+          "properties": {
+            "mode": { "enum": ["automatic", "explicit"] },
+            "maxTriangles": { "type": "integer", "minimum": 1, "default": 524288 },
+            "layout": { "$ref": "#/$defs/intPair", "description": "Sections per axis (explicit)" },
+            "resolution": { "$ref": "#/$defs/intPair", "description": "Quads per section and axis (explicit)" }
+          }
+        },
+        "heightRange": { "type": "number", "exclusiveMinimum": 0, "description": "Z size for Import Heightmap, world units" }
+      }
+    },
+    "intPair": { "type": "array", "items": { "type": "integer", "minimum": 1 }, "minItems": 2, "maxItems": 2 },
     "poiIcon": { "enum": ["dot", "house", "castle", "tower", "gate", "ruin", "tent", "campfire", "pick", "cave", "peak", "tree", "farm", "anchor", "bridge", "shrine", "skull", "chest", "star", "flag", "quest", "question"] },
     "color": { "type": "string", "pattern": "^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$" },
     "point": {
