@@ -764,4 +764,18 @@ export default {
   'terrain.optApply': 'Использовать этот размер квада',
   'terrain.overlay': 'Показывать Sections на карте',
   'terrain.overlayHint': 'Границы Sections бирюзовым (пунктир — оценка); отдельные квады видны при приближении.',
+  // --- colour picker ------------------------------------------------------------------
+  'color.wheel': 'Цветовой круг: оттенок и насыщенность',
+  'color.old': 'Было',
+  'color.new': 'Стало',
+  'color.oldTitle': 'Вернуть исходный цвет',
+  'color.hex': 'Hex',
+  'color.eyedropper': 'Взять цвет с экрана',
+  'color.recent': 'Недавние',
+  'color.red': 'Красный',
+  'color.green': 'Зелёный',
+  'color.blue': 'Синий',
+  'color.hue': 'Оттенок',
+  'color.saturation': 'Насыщенность',
+  'color.value': 'Яркость',
 };

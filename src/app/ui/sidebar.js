@@ -3,7 +3,7 @@
 // and Settings + the language switcher pinned at the bottom. Collapses with Ctrl+B.
 
 import { store, on, savePrefs } from '../state.js';
-import { h, clear } from '../dom.js';
+import { h, clear, preserveScroll } from '../dom.js';
 import { icon } from './icons.js';
 import { openMenu } from './menu.js';
 import { t, getLang, setLang, onLangChange, LANGUAGES } from '../i18n/index.js';
@@ -129,26 +129,29 @@ export function mountSidebar({ openSettings }) {
   }
 
   function renderList() {
-    clear(list);
-    const items = filtered();
-    const current = store.project?.id;
-    for (const p of items) {
-      if (renaming === p.id) { list.append(renameRow(p)); continue; }
-      const more = h('button', { type: 'button', class: 'icon-btn sb-more', title: t('sidebar.more'), 'aria-label': t('sidebar.moreFor', { name: p.name }), 'aria-haspopup': 'menu' }, icon('more'));
-      const linkedTo = p.fileName ? t('sidebar.linkedTo', { file: p.fileName }) : t('sidebar.linkedToAFile');
-      const tip = `${p.name}\n${p.fileHandle ? linkedTo : t('sidebar.browserCopy')} · ${t('sidebar.edited', { when: relTime(p.updatedAt) })}`;
-      const row = h('div', {
-        class: `sb-row${p.id === current ? ' active' : ''}`, role: 'listitem', tabindex: '0', title: tip,
-        onclick: (e) => { if (!e.target.closest('.sb-more')) openProject(p.id); },
-        onkeydown: (e) => { if (e.key === 'Enter' && e.target === row) openProject(p.id); if (e.key === 'F2') { renaming = p.id; renderList(); } },
-        oncontextmenu: (e) => { e.preventDefault(); rowMenu(p, null, { x: e.clientX, y: e.clientY }); },
-        ondblclick: (e) => { if (!e.target.closest('.sb-more')) { renaming = p.id; renderList(); } },
-      }, h('span', { class: 'sb-name' }, p.name || t('common.untitled')), p.fileHandle ? h('span', { class: 'sb-linked', title: linkedTo }, icon('link')) : null, more);
-      more.addEventListener('click', (e) => { e.stopPropagation(); rowMenu(p, more); });
-      list.append(row);
-    }
-    if (!items.length) list.append(h('p', { class: 'sb-empty' }, query ? t('sidebar.noMatch') : t('sidebar.empty')));
+    preserveScroll(list, () => {
+      clear(list);
+      const items = filtered();
+      const current = store.project?.id;
+      for (const p of items) {
+        if (renaming === p.id) { list.append(renameRow(p)); continue; }
+        const more = h('button', { type: 'button', class: 'icon-btn sb-more', title: t('sidebar.more'), 'aria-label': t('sidebar.moreFor', { name: p.name }), 'aria-haspopup': 'menu' }, icon('more'));
+        const linkedTo = p.fileName ? t('sidebar.linkedTo', { file: p.fileName }) : t('sidebar.linkedToAFile');
+        const tip = `${p.name}\n${p.fileHandle ? linkedTo : t('sidebar.browserCopy')} · ${t('sidebar.edited', { when: relTime(p.updatedAt) })}`;
+        const row = h('div', {
+          class: `sb-row${p.id === current ? ' active' : ''}`, role: 'listitem', tabindex: '0', title: tip,
+          onclick: (e) => { if (!e.target.closest('.sb-more')) openProject(p.id); },
+          onkeydown: (e) => { if (e.key === 'Enter' && e.target === row) openProject(p.id); if (e.key === 'F2') { renaming = p.id; renderList(); } },
+          oncontextmenu: (e) => { e.preventDefault(); rowMenu(p, null, { x: e.clientX, y: e.clientY }); },
+          ondblclick: (e) => { if (!e.target.closest('.sb-more')) { renaming = p.id; renderList(); } },
+        }, h('span', { class: 'sb-name' }, p.name || t('common.untitled')), p.fileHandle ? h('span', { class: 'sb-linked', title: linkedTo }, icon('link')) : null, more);
+        more.addEventListener('click', (e) => { e.stopPropagation(); rowMenu(p, more); });
+        list.append(row);
+      }
+      if (!items.length) list.append(h('p', { class: 'sb-empty' }, query ? t('sidebar.noMatch') : t('sidebar.empty')));
+    });
   }
+
 
   function setOpen(open) {
     store.prefs.sidebarOpen = !!open;

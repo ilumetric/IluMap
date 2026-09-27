@@ -20,6 +20,7 @@ import { mountSidebar } from './ui/sidebar.js';
 import { mountToolbar } from './ui/toolbar.js';
 import { mountRightbar } from './ui/rightbar.js';
 import { autoEnhanceSelects } from './ui/select.js';
+import { installColorPicker } from './ui/color-picker.js';
 import { mountDock } from './ui/dock.js';
 import { mountMinimap } from './ui/minimap.js';
 import {
@@ -34,6 +35,7 @@ import { t, plural, applyI18n } from './i18n/index.js';
 applyTheme();
 applyI18n(document);
 autoEnhanceSelects(); // every <select> gets the app's own dropdown (ui/select.js)
+installColorPicker(); // every <input type="color"> opens the colour-wheel picker (ui/color-picker.js)
 
 const canvas = new Canvas($('#stage'), { getTool: () => TOOLS[store.tool] });
 

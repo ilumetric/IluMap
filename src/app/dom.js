@@ -41,6 +41,21 @@ export function isTyping(target = document.activeElement) {
 }
 
 /**
+ * Run a re-render of `container` without losing scroll positions. Clearing a
+ * container collapses its height for a moment, which resets the scroll of
+ * whatever scrolls around it (panel body, sidebar tab, dropdown), so every
+ * scrolled ancestor is remembered and restored afterwards.
+ */
+export function preserveScroll(container, render) {
+  const scrolled = [];
+  for (let el = container; el && el !== document.body; el = el.parentElement) {
+    if (el.scrollTop || el.scrollLeft) scrolled.push([el, el.scrollTop, el.scrollLeft]);
+  }
+  render();
+  for (const [el, top, left] of scrolled) { el.scrollTop = top; el.scrollLeft = left; }
+}
+
+/**
  * Re-render a container while keeping keyboard focus on the element with the
  * same `name` (and its caret position), so live panels don't steal focus.
  */
@@ -52,10 +67,10 @@ export function renderKeepingFocus(container, render) {
     key = active.name;
     try { sel = [active.selectionStart, active.selectionEnd]; } catch { sel = null; }
   }
-  const scroll = container.scrollTop;
-  render();
-  enhanceSelects(container); // styled dropdowns now, so focus can go back to their buttons
-  container.scrollTop = scroll;
+  preserveScroll(container, () => {
+    render();
+    enhanceSelects(container); // styled dropdowns now, so focus can go back to their buttons
+  });
   if (key) {
     const el = container.querySelector(`[name="${CSS.escape(key)}"]`);
     if (el) {

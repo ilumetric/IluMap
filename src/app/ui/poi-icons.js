@@ -52,7 +52,7 @@ export function openIconPicker(anchor, { value, color, inherit = null, inheritLa
     }, poiIconSvg(inherit, color, 18), h('span', {}, inheritLabel)));
   }
   body.append(grid);
-  const pop = openPopover(body, { anchor, side: 'left', toggle: false });
+  const pop = openPopover(body, { anchor, side: 'left', toggle: false, className: 'icon-picker' });
   pop?.querySelector('.icon-cell.on, .icon-inherit.on, .icon-cell')?.focus({ preventScroll: true });
   // arrow keys move between cells (7 per row)
   grid.addEventListener('keydown', (e) => {

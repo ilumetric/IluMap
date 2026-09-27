@@ -765,4 +765,18 @@ export default {
   'terrain.optApply': 'Use this quad size',
   'terrain.overlay': 'Show Sections on the map',
   'terrain.overlayHint': 'Section borders in teal (dashed = estimate); single quads appear when you zoom in.',
+  // --- colour picker ------------------------------------------------------------------
+  'color.wheel': 'Colour wheel: hue and saturation',
+  'color.old': 'Old',
+  'color.new': 'New',
+  'color.oldTitle': 'Back to the colour you started with',
+  'color.hex': 'Hex',
+  'color.eyedropper': 'Pick a colour from the screen',
+  'color.recent': 'Recent',
+  'color.red': 'Red',
+  'color.green': 'Green',
+  'color.blue': 'Blue',
+  'color.hue': 'Hue',
+  'color.saturation': 'Saturation',
+  'color.value': 'Value (brightness)',
 };

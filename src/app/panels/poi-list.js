@@ -6,7 +6,7 @@ import { POI_STATUSES } from '../../core/schema.js';
 import { resolveStyle, poiStyle, STATUS_COLORS } from '../../core/styles.js';
 import { nextId, zoneOf } from '../../core/model.js';
 import { ICONS } from '../../core/render-svg.js';
-import { h, clear } from '../dom.js';
+import { h, clear, preserveScroll } from '../dom.js';
 import { icon } from '../ui/icons.js';
 import { t, label, onLangChange } from '../i18n/index.js';
 
@@ -91,48 +91,51 @@ export function mountPoiList(root, { canvas, onCount = () => {} }) {
   }
 
   function renderList() {
-    const doc = store.doc;
-    const rs = resolveStyle(doc.style);
-    const zones = new Map(doc.layers.zones.map((z) => [z.id, z.name || z.id]));
-    search.placeholder = t('points.search');
-    search.setAttribute('aria-label', t('points.searchAria'));
-    addBtn.title = t('points.addTitle');
-    addBtn.setAttribute('aria-label', t('points.add'));
-    for (const [sel, key] of [[selStatus, 'points.filterStatus'], [selType, 'points.filterType'], [selZone, 'points.filterZone']]) {
-      sel.title = t(key);
-      sel.setAttribute('aria-label', t(key));
-    }
-    fillSelect(selStatus, f.status, POI_STATUSES.map((s) => [s, label('status', s)]), t('points.allStatuses'));
-    const types = [...new Set([...Object.keys(rs.poiTypes), ...doc.pois.map((p) => p.type)])];
-    fillSelect(selType, f.type, types.map((ty) => [ty, label('poiTypes', ty)]), t('points.allTypes'));
-    fillSelect(selZone, f.zone, [...zones.entries()], t('points.allZones'));
-
-    const match = (p) => {
-      if (f.status && (p.status || 'idea') !== f.status) return false;
-      if (f.type && p.type !== f.type) return false;
-      if (f.zone && zoneOfPoi(p) !== f.zone) return false;
-      if (query) {
-        const hay = `${p.name} ${p.id} ${p.type} ${(p.tags || []).join(' ')} ${p.notes || ''}`.toLowerCase();
-        if (!hay.includes(query)) return false;
+    preserveScroll(list, () => {
+      const doc = store.doc;
+      const rs = resolveStyle(doc.style);
+      const zones = new Map(doc.layers.zones.map((z) => [z.id, z.name || z.id]));
+      search.placeholder = t('points.search');
+      search.setAttribute('aria-label', t('points.searchAria'));
+      addBtn.title = t('points.addTitle');
+      addBtn.setAttribute('aria-label', t('points.add'));
+      for (const [sel, key] of [[selStatus, 'points.filterStatus'], [selType, 'points.filterType'], [selZone, 'points.filterZone']]) {
+        sel.title = t(key);
+        sel.setAttribute('aria-label', t(key));
       }
-      return true;
-    };
-    const shown = doc.pois.filter(match);
-    const unplaced = shown.filter((p) => p.placed === false);
-    const placed = shown.filter((p) => p.placed !== false);
-    clear(list);
-    onCount(shown.length === doc.pois.length ? String(doc.pois.length) : `${shown.length}/${doc.pois.length}`);
-    if (unplaced.length) {
-      list.append(h('div', { class: 'section-title warn' }, t('points.unplaced', { n: unplaced.length })));
-      for (const p of unplaced) list.append(renderRow(p, rs, zones));
-    }
-    if (placed.length) {
-      if (unplaced.length) list.append(h('div', { class: 'section-title' }, t('points.onMap', { n: placed.length })));
-      for (const p of placed) list.append(renderRow(p, rs, zones));
-    }
-    if (!shown.length) list.append(h('p', { class: 'muted empty' }, doc.pois.length ? t('points.noMatch') : t('points.empty')));
-    else list.append(h('p', { class: 'panel-hint' }, t('points.dragHint')));
+      fillSelect(selStatus, f.status, POI_STATUSES.map((s) => [s, label('status', s)]), t('points.allStatuses'));
+      const types = [...new Set([...Object.keys(rs.poiTypes), ...doc.pois.map((p) => p.type)])];
+      fillSelect(selType, f.type, types.map((ty) => [ty, label('poiTypes', ty)]), t('points.allTypes'));
+      fillSelect(selZone, f.zone, [...zones.entries()], t('points.allZones'));
+
+      const match = (p) => {
+        if (f.status && (p.status || 'idea') !== f.status) return false;
+        if (f.type && p.type !== f.type) return false;
+        if (f.zone && zoneOfPoi(p) !== f.zone) return false;
+        if (query) {
+          const hay = `${p.name} ${p.id} ${p.type} ${(p.tags || []).join(' ')} ${p.notes || ''}`.toLowerCase();
+          if (!hay.includes(query)) return false;
+        }
+        return true;
+      };
+      const shown = doc.pois.filter(match);
+      const unplaced = shown.filter((p) => p.placed === false);
+      const placed = shown.filter((p) => p.placed !== false);
+      clear(list);
+      onCount(shown.length === doc.pois.length ? String(doc.pois.length) : `${shown.length}/${doc.pois.length}`);
+      if (unplaced.length) {
+        list.append(h('div', { class: 'section-title warn' }, t('points.unplaced', { n: unplaced.length })));
+        for (const p of unplaced) list.append(renderRow(p, rs, zones));
+      }
+      if (placed.length) {
+        if (unplaced.length) list.append(h('div', { class: 'section-title' }, t('points.onMap', { n: placed.length })));
+        for (const p of placed) list.append(renderRow(p, rs, zones));
+      }
+      if (!shown.length) list.append(h('p', { class: 'muted empty' }, doc.pois.length ? t('points.noMatch') : t('points.empty')));
+      else list.append(h('p', { class: 'panel-hint' }, t('points.dragHint')));
+    });
   }
+
 
   let pending = false;
   const schedule = () => {

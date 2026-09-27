@@ -156,6 +156,18 @@ they live in `core/render-svg.js` because exports need them.
   `<select>` stays hidden in the DOM as the source of truth, so native OS
   pop-ups never appear. Add `data-native` to a `<select>` to opt out. Menus sit
   above dialogs; Escape closes the menu first, then the dialog.
+* **Colour picker** (`ui/color-picker.js`): every `<input type="color">`
+  stays as the swatch, but a click opens a 332px popover instead of the OS
+  dialog — a 176px colour wheel (hue = angle, saturation = distance from the
+  centre) with a vertical value slider, *Old* / *New* swatches (click *Old* to
+  revert), R G B and H S V gradient sliders with number fields, a Hex field,
+  an eyedropper where the browser has one, and recent colours (localStorage).
+  Dragging updates live (`input`); releasing or editing a field commits
+  (`change`, one undo step). `data-native` keeps the browser picker.
+* **Scroll position**: panels re-render on every change; `preserveScroll()`
+  (`dom.js`, used by `renderKeepingFocus`, the POI list and the maps list)
+  restores every scrolled ancestor, so editing deep in a long panel never
+  jumps back to the top.
 * **Hand tool** (and Space / a pan in progress): map items get no hover
   highlight and keep the grab cursor.
 * **POI icon picker** (`ui/poi-icons.js`): a 300px popover with the map
