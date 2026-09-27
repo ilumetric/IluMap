@@ -247,9 +247,16 @@ only colours map content.
   `'objects'` (Move / scale): any visible, unlocked object; `'points'` (Edit
   points): only vertices / POIs of objects that are already selected (objects
   are chosen in the Layers panel, the Points list or with Move / scale);
-  `'none'` (drawing, measure, pan): nothing. `Canvas.hitFromTarget` applies
-  it for all tools, and `#canvas[data-picks]` limits the hover highlight to
-  what a click would select. Shortcuts go through `shortcutKey(e)` (dom.js):
+  `'none'` (drawing, measure, pan): nothing. `picks` may be a function of
+  the held modifiers (Edit: Ctrl → `'objects'`). `Canvas.hitFromTarget`
+  applies it for all tools, and `#canvas[data-picks]` limits the hover
+  highlight to what a click would select. Contextual feedback is the same
+  mechanism for every tool: the canvas tracks Ctrl / Alt / Shift and the
+  pointer and calls `tool.hover(ctx)` (on pointer moves and when a modifier
+  is pressed or released), the tool draws its preview in `overlay()` (Edit:
+  Alt → the point that will be added, a red cross on the point that will be
+  deleted; Ctrl → outline of the object a click selects) and returns
+  `tip()` — a short text next to the cursor. Shortcuts go through `shortcutKey(e)` (dom.js):
   Latin keys as typed, other layouts by physical key.
 * `projects.js` — IndexedDB storage of local projects (below).
 * `session.js` — the workspace: which project is open, autosave, new / open /

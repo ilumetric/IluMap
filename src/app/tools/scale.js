@@ -28,6 +28,7 @@ const HANDLES = {
 const CURSORS = { nw: 'nwse-resize', se: 'nwse-resize', ne: 'nesw-resize', sw: 'nesw-resize', n: 'ns-resize', s: 'ns-resize', e: 'ew-resize', w: 'ew-resize' };
 
 let drag = null; // scaling by a handle
+let hover = null; // what the pointer is over: { type: 'handle', handle } | { type: 'inside' } | { type: 'object', id }
 let pick = null; // moving the selection, or a selection box
 
 function snapshot(items) {
@@ -148,6 +149,31 @@ export default {
   icon: 'scale',
   hint: () => t('tools.scaleHint'),
   picks: 'objects', // clicks on the map select objects (see Edit tool)
+
+  hover(ctx) {
+    hover = null;
+    if (!ctx || drag || pick) return;
+    const el = ctx.e?.target?.closest?.('[data-scale-handle]');
+    if (el) { hover = { type: 'handle', handle: el.dataset.scaleHandle }; return; }
+    if (ctx.hit && ctx.hit.type !== 'vertex' && !store.selection.has(ctx.hit.id)) { hover = { type: 'object', id: ctx.hit.id }; return; }
+    if (ctx.hit?.type === 'poi' || insideBox(viewBox(editableItems()), ctx.view)) hover = { type: 'inside' };
+  },
+
+  tip(canvas) {
+    if (!hover) return null;
+    if (hover.type === 'handle') {
+      const corner = hover.handle.length === 2;
+      if (canvas.mods.alt) return { text: t('tips.scaleCentre') };
+      if (corner) return { text: t(canvas.mods.ctrl ? 'tips.scaleFree' : 'tips.scaleCorner') };
+      return { text: t('tips.scaleEdge') };
+    }
+    if (hover.type === 'inside') return { text: t('tips.move') };
+    if (hover.type === 'object') {
+      const it = findById(store.doc, hover.id)?.item;
+      return { text: t(canvas.mods.shift ? 'tips.addSelect' : 'tips.select', { name: it?.name || it?.id || hover.id }), tone: 'accent' };
+    }
+    return null;
+  },
 
   down(ctx) {
     const el = ctx.e?.target?.closest?.('[data-scale-handle]');

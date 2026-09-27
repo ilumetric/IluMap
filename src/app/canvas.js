@@ -2,6 +2,14 @@
 // image, grid, bounds, layer content (via core/render-svg.js), selection +
 // vertex handles, tool overlay. Outside the bounds the stage shows the UI's
 // dot grid, which follows pan/zoom through CSS custom properties.
+//
+// Contextual feedback, the same for every tool: the canvas tracks the held
+// modifiers (Ctrl / Alt / Shift) and the pointer, and asks the active tool
+//   picks(mods)   what a click selects now ('objects' | 'points' | 'none'),
+//                 which also drives the hover highlight (#canvas[data-picks]);
+//   hover(ctx)    to update its preview for the pointer (drawn in overlay());
+//   tip()         for a short text shown next to the cursor ({ text, tone }).
+// Pressing or releasing a modifier re-runs hover() without moving the mouse.
 
 import { store, on, emit, isLayerLocked, visibleLayers, vkey } from './state.js';
 import { renderParts, renderGrid, viewRectOfBounds, toView, fromView, esc } from '../core/render-svg.js';
@@ -45,6 +53,13 @@ export class Canvas {
     this.lastDown = { t: 0, x: 0, y: 0, count: 0 };
     this.spaceDown = false;
     this.lastRenderedK = null;
+    this.mods = { ctrl: false, alt: false, shift: false }; // held modifiers
+    this.pointer = null; // { clientX, clientY } of the pointer over the map
+    this.tipEl = document.createElement('div');
+    this.tipEl.className = 'cursor-tip';
+    this.tipEl.hidden = true;
+    this.tipEl.setAttribute('aria-hidden', 'true');
+    stage.append(this.tipEl);
     this.bindEvents();
     // keep the map fitted until the user pans or zooms (the first fit can happen before layout)
     this.autoFit = true;
@@ -58,7 +73,7 @@ export class Canvas {
     });
     on('selection', () => this.invalidate('content', 'overlay', 'tool'));
     on('layers', () => this.invalidate('content', 'overlay'));
-    on('tool', () => { this.updateCursor(); this.invalidate('tool', 'overlay'); });
+    on('tool', () => { this.getTool()?.hover?.(null); this.refreshHover(); this.invalidate('tool', 'overlay'); });
     this.updateCursor(); // data-picks for the first tool
     on('background', () => this.invalidate('bg'));
     on('terrain-overlay', () => this.invalidate('grid'));
@@ -387,8 +402,51 @@ export class Canvas {
     el.querySelector('.lbl').textContent = fmtLength(nice * scale, meta);
   }
 
-  /** What a click on the map selects with the active tool: 'objects' | 'points' | 'none'. */
-  picks() { return this.getTool()?.picks || 'none'; }
+  /** What a click on the map selects with the active tool now: 'objects' | 'points' | 'none'. */
+  picks() {
+    const p = this.getTool()?.picks;
+    return (typeof p === 'function' ? p(this.mods) : p) || 'none';
+  }
+
+  /** Remember the modifiers of an event; true when they changed. */
+  setMods(e) {
+    const m = { ctrl: !!(e.ctrlKey || e.metaKey), alt: !!e.altKey, shift: !!e.shiftKey };
+    const o = this.mods;
+    if (m.ctrl === o.ctrl && m.alt === o.alt && m.shift === o.shift) return false;
+    this.mods = m;
+    return true;
+  }
+
+  /** Re-run the tool's hover for the last pointer position (modifiers changed, tool changed). */
+  refreshHover() {
+    if (this.dragging) this.svg.dataset.picks = this.picks(); // keep a drag's cursor (e.g. resize)
+    else this.updateCursor();
+    const tool = this.getTool();
+    if (this.pointer && !this.dragging && !this.pan) {
+      const { clientX, clientY } = this.pointer;
+      const target = document.elementFromPoint(clientX, clientY);
+      const ev = { clientX, clientY, target, button: 0, shiftKey: this.mods.shift, altKey: this.mods.alt, ctrlKey: this.mods.ctrl, metaKey: false };
+      tool?.hover?.(this.makeCtx(ev, { hit: target && this.svg.contains(target) ? this.hitFromTarget(target) : null }));
+    } else tool?.hover?.(null);
+    this.invalidate('tool');
+    this.updateTip();
+  }
+
+  /** The text next to the cursor, from the active tool's tip(). */
+  updateTip() {
+    const el = this.tipEl;
+    const tip = this.pointer && !this.pan && !this.dragging && !this.spaceDown ? this.getTool()?.tip?.(this) : null;
+    if (!tip?.text) { el.hidden = true; return; }
+    if (el.textContent !== tip.text) el.textContent = tip.text;
+    el.className = `cursor-tip${tip.tone ? ` tip-${tip.tone}` : ''}`;
+    el.hidden = false;
+    const s = this.stage.getBoundingClientRect();
+    const x = this.pointer.clientX - s.left + 16;
+    const y = this.pointer.clientY - s.top + 18;
+    const w = el.offsetWidth;
+    el.style.left = `${Math.round(Math.min(x, s.width - w - 8))}px`;
+    el.style.top = `${Math.round(Math.min(y, s.height - el.offsetHeight - 8))}px`;
+  }
 
   updateCursor() {
     this.svg.dataset.picks = this.picks();
@@ -447,7 +505,23 @@ export class Canvas {
 
     svg.addEventListener('contextmenu', (e) => e.preventDefault());
 
+    // modifiers change what a click does: re-run the hover preview and the highlight right away
+    const onModKey = (e) => {
+      if (!['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) return;
+      // Alt alone would move focus to the browser's menu bar (not while typing: AltGr characters)
+      if (e.key === 'Alt' && e.type === 'keydown' && !e.target?.closest?.('input, textarea, [contenteditable]')) e.preventDefault();
+      if (this.setMods(e)) this.refreshHover();
+    };
+    document.addEventListener('keydown', onModKey);
+    document.addEventListener('keyup', onModKey);
+    window.addEventListener('blur', () => {
+      this.mods = { ctrl: false, alt: false, shift: false };
+      this.refreshHover();
+    });
+
     svg.addEventListener('pointerdown', (e) => {
+      if (this.setMods(e)) this.updateCursor();
+      this.tipEl.hidden = true;
       svg.focus({ preventScroll: true });
       if (document.activeElement && document.activeElement !== document.body && document.activeElement.blur && document.activeElement !== svg) document.activeElement.blur();
       const tool = this.getTool();
@@ -482,9 +556,17 @@ export class Canvas {
         return;
       }
       const tool = this.getTool();
+      const modsChanged = this.setMods(e);
+      if (modsChanged && !this.dragging) this.updateCursor();
+      this.pointer = { clientX: e.clientX, clientY: e.clientY };
       ctx.hit = this.dragging ? null : this.hitFromTarget(e.target);
       ctx.dragging = !!this.dragging;
       tool?.move?.(ctx);
+      if (!this.dragging && tool?.hover) {
+        tool.hover(ctx);
+        this.invalidate('tool');
+      }
+      this.updateTip();
     });
 
     const end = (e) => {
@@ -497,10 +579,18 @@ export class Canvas {
       this.dragging = false;
       const tool = this.getTool();
       tool?.up?.(this.makeCtx(e));
+      this.refreshHover();
     };
     svg.addEventListener('pointerup', end);
     svg.addEventListener('pointercancel', end);
-    svg.addEventListener('pointerleave', () => { store.cursor = null; emit('cursor', null); });
+    svg.addEventListener('pointerleave', () => {
+      store.cursor = null;
+      emit('cursor', null);
+      this.pointer = null;
+      this.getTool()?.hover?.(null);
+      this.invalidate('tool');
+      this.updateTip();
+    });
 
     // drag & drop: POIs from the list (onto the map, not onto floating chrome),
     // map.json / images from the OS (anywhere on the stage)

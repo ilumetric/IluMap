@@ -277,7 +277,7 @@ together with `masks.json` (Chrome / Edge).
 
 | Key | Action |
 |---|---|
-| `V` | Edit points of the objects selected in Layers / Points (clicks on the map never select another object, so a missed vertex does not pick the layer underneath): click / Shift+click / drag a box to select vertices, drag to move, `Ctrl+A` all points, arrows nudge, `Delete` removes (all points of a feature = the feature) |
+| `V` | Edit points of the selected objects. A plain click never selects another object (a missed vertex does not pick the layer underneath); `Ctrl`+click selects an object on any layer (pickable shapes light up while `Ctrl` is held, `Ctrl`+drag: objects in a box). Click / Shift+click / box to select vertices, drag to move; hold `Alt` to preview and add a point on a segment or delete the point under the cursor (red cross); `Ctrl+A` all points, arrows nudge, `Delete` removes. A tip next to the cursor says what a click will do |
 | `S` | Move / scale whole objects: drag inside the box to move, handles to scale (corners keep proportions, `Ctrl` free, `Alt` from the centre, `Esc` cancels) |
 | `H`, hold `Space`, middle mouse | Pan |
 | Wheel · `F` · `+` / `-` | Zoom to cursor · fit · zoom |
