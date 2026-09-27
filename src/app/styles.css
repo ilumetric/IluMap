@@ -373,7 +373,7 @@ kbd {
 /* tool hint / status above the dock */
 .hud {
   position: absolute; left: 50%; bottom: 64px; transform: translateX(-50%);
-  max-width: min(720px, calc(100% - 460px)); padding: 6px 12px;
+  width: max-content; max-width: max(min(720px, calc(100% - 460px)), min(360px, calc(100% - 96px))); padding: 6px 12px;
   background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow);
   pointer-events: none; text-align: center; font-size: 12px;
 }
@@ -841,6 +841,10 @@ input[type="color"].swatch { width: 16px; height: 16px; margin: 0 5px; }
 #cv-tool .ov-vertex.first { fill: var(--accent-yellow); pointer-events: none; }
 #cv-tool .ov-cage { stroke: var(--accent-yellow); }
 .ov-box { fill: var(--accent); fill-opacity: 0.08; stroke: var(--accent); pointer-events: none; }
+.ov-scale-box { fill: none; stroke: var(--accent); pointer-events: none; }
+.ov-scale-handle { fill: #ffffff; stroke: var(--accent); }
+.ov-scale-handle:hover { fill: var(--accent); }
+#canvas.panning .ov-scale-handle { cursor: inherit !important; pointer-events: none; }
 .ov-measure { fill: none; stroke: var(--accent-yellow); pointer-events: none; }
 .ov-measure-pt { fill: var(--accent-yellow); pointer-events: none; }
 .ov-measure-label { fill: #fff6d6; stroke: #111111; paint-order: stroke; font-family: var(--font); pointer-events: none; }

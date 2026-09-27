@@ -432,6 +432,10 @@ export default {
 
   // --- инструменты ------------------------------------------------------------------------------------
   'tools.select': 'Выделение',
+  'tools.scale': 'Масштаб',
+  'tools.scaleHint': 'Тяните за маркер, чтобы масштабировать выделенное · углы сохраняют пропорции (Ctrl — свободно) · Alt — от центра · Shift — привязка · Esc — отмена · щелчки и рамка — как в «Выделении»',
+  'tools.scaleStatus': 'Масштаб {sx} × {sy}',
+  'tools.scaleSize': 'Выделено {w} × {h}',
   'tools.pan': 'Рука',
   'tools.line': 'Линия',
   'tools.polygon': 'Полигон',
@@ -469,6 +473,7 @@ export default {
   'history.redone': 'Повторено: {action}',
   'history.named': '{action} «{name}»',
   'history.counted': '{action}: {items}',
+  'history.action.scale': 'Масштабирование',
   'history.action.move': 'Перемещение',
   'history.action.reshape': 'Изменение формы',
   'history.action.edit': 'Изменение',
@@ -597,6 +602,7 @@ export default {
   'shortcuts.keys.dblVertex': 'Двойной щелчок по вершине',
   'shortcuts.keys.arrows': 'Стрелки',
   'shortcuts.select': 'Выделение и перемещение (Shift+щелчок — добавить к выделению, рамка на пустом месте — выделить несколько)',
+  'shortcuts.scale': 'Масштаб: рамка с маркерами вокруг выделенного',
   'shortcuts.pan': 'Рука (сдвиг вида)',
   'shortcuts.zoom': 'Масштаб к курсору · F — вписать · + / − — масштаб',
   'shortcuts.line': 'Линия (берег, реки, дороги, ж/д)',

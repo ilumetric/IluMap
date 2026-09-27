@@ -127,7 +127,7 @@ window.addEventListener('dragover', (e) => { if ([...(e.dataTransfer?.types || [
 window.addEventListener('drop', (e) => { if (!e.target.closest('#stage')) e.preventDefault(); });
 
 // --- keyboard -------------------------------------------------------------------------
-const KEY_TOOLS = { v: 'select', h: 'pan', l: 'line', p: 'polygon', w: 'wall', b: 'bridge', o: 'poi', m: 'measure', k: 'calibrate' };
+const KEY_TOOLS = { v: 'select', s: 'scale', h: 'pan', l: 'line', p: 'polygon', w: 'wall', b: 'bridge', o: 'poi', m: 'measure', k: 'calibrate' };
 
 function nudge(dx, dy) {
   const items = selectedItems();
@@ -229,6 +229,7 @@ function showHelp() {
   // [keys (shortcuts.keys.* when they contain words, else literal), description key]
   const rows = [
     ['V', 'select'],
+    ['S', 'scale'],
     [t('shortcuts.keys.pan'), 'pan'],
     [t('shortcuts.keys.wheel'), 'zoom'],
     ['L', 'line'],

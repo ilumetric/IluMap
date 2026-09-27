@@ -56,9 +56,9 @@ export class Canvas {
       if (d?.load || flip !== this.lastFlip) { this.lastFlip = flip; this.fit(); }
       this.invalidate('content', 'overlay', 'tool', 'bg', 'grid');
     });
-    on('selection', () => this.invalidate('content', 'overlay'));
+    on('selection', () => this.invalidate('content', 'overlay', 'tool'));
     on('layers', () => this.invalidate('content', 'overlay'));
-    on('tool', () => { this.updateCursor(); this.invalidate('tool'); });
+    on('tool', () => { this.updateCursor(); this.invalidate('tool', 'overlay'); });
     on('background', () => this.invalidate('bg'));
     on('terrain-overlay', () => this.invalidate('grid'));
     onLangChange(() => this.invalidate('grid', 'tool')); // scale bar and tool overlays carry text
@@ -331,7 +331,7 @@ export class Canvas {
     const V = (p) => toView(doc, p);
     let s = '';
     const sel = [...store.selection];
-    const showHandles = sel.length <= 6;
+    const showHandles = sel.length <= 6 && store.tool !== 'scale'; // the Scale tool shows its box instead
     for (const id of sel) {
       const hit = findById(doc, id);
       if (!hit) continue;

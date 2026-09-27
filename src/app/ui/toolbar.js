@@ -1,6 +1,6 @@
 // Floating toolbars on the canvas.
 // Left (vertically centred): stacked round pills
-//   [Layers panel] · [Select, Pan] · [Line, Polygon, Wall, Bridge, POI] · [Measure, Calibrate, Delete]
+//   [Layers panel] · [Select, Scale, Pan] · [Line, Polygon, Wall, Bridge, POI] · [Measure, Calibrate, Delete]
 // The active tool is a filled accent circle; draw tools carry a small
 // underline in the colour of the layer they will draw into.
 // The view toggles (grid, labels, background) live in the top pill (chrome.js).
@@ -18,7 +18,7 @@ import { pickBackgroundImage } from '../io.js';
 import { chooseBackgroundFromFolder, allowFolderAccess } from '../session.js';
 
 const GROUPS = [
-  ['select', 'pan'],
+  ['select', 'scale', 'pan'],
   ['line', 'polygon', 'wall', 'bridge', 'poi'],
   ['measure', 'calibrate', '$delete'],
 ];

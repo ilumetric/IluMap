@@ -433,6 +433,10 @@ export default {
 
   // --- tools ------------------------------------------------------------------------------------
   'tools.select': 'Select / move',
+  'tools.scale': 'Scale',
+  'tools.scaleHint': 'Drag a handle to scale the selection · corners keep proportions (Ctrl: free) · Alt: from the centre · Shift toggles snapping · Esc cancels · click / drag as with Select',
+  'tools.scaleStatus': 'Scale {sx} × {sy}',
+  'tools.scaleSize': 'Selection {w} × {h}',
   'tools.pan': 'Pan',
   'tools.line': 'Line',
   'tools.polygon': 'Polygon',
@@ -470,6 +474,7 @@ export default {
   'history.redone': 'Redone: {action}',
   'history.named': '{action} “{name}”',
   'history.counted': '{action}: {items}',
+  'history.action.scale': 'Scale',
   'history.action.move': 'Move',
   'history.action.reshape': 'Edit shape',
   'history.action.edit': 'Edit',
@@ -598,6 +603,7 @@ export default {
   'shortcuts.keys.dblVertex': 'Double-click vertex',
   'shortcuts.keys.arrows': 'Arrows',
   'shortcuts.select': 'Select / move (Shift+click: add to selection, drag empty space: box select)',
+  'shortcuts.scale': 'Scale: a box with handles around the selection',
   'shortcuts.pan': 'Pan',
   'shortcuts.zoom': 'Zoom to cursor · F fit · + / − zoom',
   'shortcuts.line': 'Line (coast, rivers, roads, rails)',
