@@ -5,7 +5,7 @@ import { store, markSaved, change, emit, visibleLayers } from './state.js';
 import { normalize, serialize, validate, findById, zoneOf, extractSelection, selectionBounds } from '../core/model.js';
 import { renderSvg } from '../core/render-svg.js';
 import { toText } from '../core/text-export.js';
-import { renderMask, maskFileName, maskSidecar, stringifySidecar, maskSources, zoneTypes } from '../core/render-mask.js';
+import { renderMask, maskFileName, maskSidecar, stringifySidecar, usedMaskSources, zoneTypes } from '../core/render-mask.js';
 import { encodePngAsync } from '../core/png.js';
 import { fitPairs } from '../core/calibration.js';
 import { download, toast, openDialog, h } from './dom.js';
@@ -193,41 +193,48 @@ export async function exportMasks(scope = 'all', { size = null } = {}) {
   if (!s) return;
   // a selection keeps the full map bounds so its masks line up with the whole-map heightmap
   const doc = s.doc;
-  const sources = maskSources(doc);
+  const featureIds = [];
+  for (const l of Object.keys(doc.layers)) for (const f of doc.layers[l] || []) featureIds.push(f.id);
+  if (s.selection && !featureIds.length) { toast(t('toast.maskSelectShapes'), { type: 'warn', timeout: 6000 }); return; }
+  // only sources that have something to draw (an empty source is an all-black mask)
+  const sources = usedMaskSources(doc);
+  const options = s.selection
+    ? [['all', t('dialogs.masks.sourceSelection')], ...sources.map((x) => [x, maskSourceLabel(x)])]
+    : sources.map((x) => [x, maskSourceLabel(x)]);
+  const prefKey = s.selection ? 'maskSourceSelection' : 'maskSource';
+  const remembered = store.prefs[prefKey];
+  const value = options.some(([v]) => v === remembered) ? remembered : options[0][0];
   const res = await openDialog({
     title: t(s.selection ? 'dialogs.masks.titleSelection' : 'dialogs.masks.title'),
     message: t(s.selection ? 'dialogs.masks.messageSelection' : 'dialogs.masks.message'),
     fields: [
-      { name: 'source', label: t('dialogs.masks.source'), type: 'select', value: store.prefs.maskSource || 'land', options: [...sources.map((s) => [s, maskSourceLabel(s)]), ['feature', t('dialogs.masks.sourceFeature')]] },
+      { name: 'source', label: t('dialogs.masks.source'), type: 'select', value, options },
       { name: 'size', label: t('dialogs.masks.size'), type: 'number', value: size || store.prefs.maskSize || 2048, min: 16, max: 16384, step: 1 },
-      { name: 'feather', label: t('dialogs.masks.feather'), type: 'number', value: 0, min: 0, max: 256, step: 1 },
       { name: 'stroke', label: t('dialogs.masks.stroke'), type: 'number', value: '', min: 0, step: 'any' },
       { name: 'invert', label: t('dialogs.masks.invert'), type: 'checkbox', value: false },
-      { name: 'split', label: t('dialogs.masks.split'), type: 'checkbox', value: false },
+      { name: 'split', label: t(s.selection ? 'dialogs.masks.splitItems' : 'dialogs.masks.split'), type: 'checkbox', value: false },
     ],
     okText: t('dialogs.masks.ok'),
   });
   if (!res) return;
-  store.prefs.maskSource = res.source;
+  store.prefs[prefKey] = res.source;
   store.prefs.maskSize = res.size;
   let list = [res.source];
-  if (res.source === 'feature') {
-    const sel = [...store.selection].filter((id) => findById(doc, id)?.kind === 'feature');
-    if (!sel.length) { toast(t('toast.selectFeatureFirst'), { type: 'warn' }); return; }
-    list = sel.map((id) => `feature:${id}`);
-  }
-  if (res.split && res.source === 'zones') list = zoneTypes(doc).map((t) => `zones:${t}`);
+  if (res.split && s.selection) list = featureIds.map((id) => `feature:${id}`);
+  else if (res.split && res.source === 'zones') list = zoneTypes(doc).map((z) => `zones:${z}`);
+  const base = s.selection ? `${s.base}-` : '';
   const files = [];
   const entries = [];
   let last = null;
   const close = toast(t('toast.renderingMasks'), { timeout: 0 });
   try {
     for (const source of list) {
-      const m = renderMask(doc, { source, size: res.size, invert: res.invert, feather: res.feather || 0, stroke: res.stroke || undefined });
+      // strictly black and white: no feathering from the editor (the CLI still has --feather)
+      const m = renderMask(doc, { source, size: res.size, invert: res.invert, stroke: res.stroke || undefined });
       last = m;
-      const name = maskFileName(source);
+      const name = `${base}${maskFileName(source === 'all' ? 'selection' : source)}`;
       files.push({ name, blob: await pngBlobFromGrey(m) });
-      const entry = { file: name, source, invert: !!res.invert, feather: res.feather || 0 };
+      const entry = { file: name, source, invert: !!res.invert, feather: 0 };
       if (res.stroke) entry.stroke = res.stroke;
       entries.push(entry);
     }
@@ -237,10 +244,18 @@ export async function exportMasks(scope = 'all', { size = null } = {}) {
     return;
   }
   close();
-  files.push({ name: 'masks.json', blob: new Blob([stringifySidecar(maskSidecar(doc, last, entries))], { type: 'application/json' }) });
-  if ('showDirectoryPicker' in window && files.length > 2) {
+  const scale = t('toast.maskScale', { w: String(last.width), h: String(last.height), upp: String(Math.round(last.unitsPerPixel * 100) / 100), units: doc.meta?.units || 'cm' });
+  // one mask: a single PNG download (browsers often block a second automatic download)
+  if (files.length === 1) {
+    download(files[0].name, files[0].blob);
+    toast(`${t('toast.exportedMask', { file: files[0].name })} ${scale}`, { type: 'ok', timeout: 6000 });
+    return;
+  }
+  // several masks: write them and masks.json into a folder (Chrome / Edge), else download one by one
+  files.push({ name: `${base}masks.json`, blob: new Blob([stringifySidecar(maskSidecar(doc, last, entries))], { type: 'application/json' }) });
+  if ('showDirectoryPicker' in window) {
     try {
-      const dir = await window.showDirectoryPicker({ mode: 'readwrite' });
+      const dir = await window.showDirectoryPicker({ id: 'ilumap-masks', mode: 'readwrite' });
       for (const f of files) {
         const fh = await dir.getFileHandle(f.name, { create: true });
         const w = await fh.createWritable();
@@ -253,7 +268,10 @@ export async function exportMasks(scope = 'all', { size = null } = {}) {
       if (e.name === 'AbortError') return;
     }
   }
-  for (const f of files) download(f.name, f.blob);
+  for (const f of files) {
+    download(f.name, f.blob);
+    await new Promise((r) => setTimeout(r, 350)); // spaced out so the browser does not drop them
+  }
   toast(t('toast.exportedMasks', { masks: plural('count.masks', files.length - 1) }), { type: 'ok' });
 }
 

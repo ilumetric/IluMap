@@ -16,6 +16,23 @@ export function maskSources(doc) {
   return out;
 }
 
+/**
+ * Sources that would not come out empty for this document (for dialogs):
+ * land / water always (land mode), zones and line layers only when they have
+ * features. `all` (every feature, zones filled and lines drawn) is offered
+ * for selections.
+ */
+export function usedMaskSources(doc) {
+  const has = (l) => (doc.layers[l] || []).some((f) => (f.points || []).length >= 2);
+  const out = [];
+  if (doc.meta?.landMode === 'filled' || has('land')) out.push('land');
+  if (doc.meta?.landMode === 'filled' || has('land') || has('water')) out.push('water');
+  if (has('zones')) { out.push('zones'); for (const t of zoneTypes(doc)) out.push(`zones:${t}`); }
+  for (const l of LINE_SOURCES) if (has(l)) out.push(l);
+  for (const t of reliefTypesUsed(doc)) out.push(`relief:${t}`);
+  return out;
+}
+
 /** Relief types used in the map (ridge, fault, cliff, …) — mask sources relief:<type>. */
 export function reliefTypesUsed(doc) {
   const set = new Set();
@@ -198,6 +215,9 @@ export function renderMask(doc, opts = {}) {
   } else if (source === 'zones' || source.startsWith('zones:')) {
     const type = source.startsWith('zones:') ? source.slice(6) : null;
     for (const f of layerFeatures('zones')) if (!type || f.type === type) drawFeature(data, F, 'zones', f, opts, W);
+  } else if (source === 'all') {
+    // every feature of the document white: polygons filled, lines drawn with their width
+    for (const l of LAYERS) for (const f of layerFeatures(l)) drawFeature(data, F, l, f, opts, W);
   } else if (source.startsWith('relief:')) {
     const type = source.slice(7);
     for (const f of layerFeatures('relief')) if (f.type === type) drawFeature(data, F, 'relief', f, opts, W);
@@ -215,7 +235,7 @@ export function renderMask(doc, opts = {}) {
   } else if (LAYERS.includes(source)) {
     for (const f of layerFeatures(source)) drawFeature(data, F, source, f, opts, W);
   } else {
-    throw new Error(`unknown mask source "${source}" (try land, water, zones, zones:<type>, rivers, roads, rails, walls, coast, relief, relief:<type>, bridges, feature:<id>)`);
+    throw new Error(`unknown mask source "${source}" (try land, water, zones, zones:<type>, rivers, roads, rails, walls, coast, relief, relief:<type>, bridges, all, feature:<id>)`);
   }
 
   if (opts.feather > 0) data = boxBlur(data, width, height, opts.feather);

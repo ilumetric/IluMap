@@ -262,7 +262,14 @@ node tools/ilumap.mjs mask map.json --source rivers,roads --feather 8 --out mask
 
 In Gaea, load `mask_land.png` with a *File* node sized to the same world extent
 and use it as the island mask; zone masks drive erosion/texturing per biome.
-The editor has the same export under **Export → Masks…** (top bar).
+The editor has the same export under **Export → Masks…** (top bar). Its masks
+are strictly black and white (no feathering; the CLI keeps `--feather`), and it
+only offers sources that have something to draw. With the Export scope set to
+*Selection*, the default source is **Selected items**: the selected zones are
+filled and the selected lines drawn with their width, on the whole map extent
+so the mask lines up with the others; *One file per selected item* writes one
+mask each. A single mask downloads as one PNG; several go into a folder
+together with `masks.json` (Chrome / Edge).
 
 ## Keyboard shortcuts
 
