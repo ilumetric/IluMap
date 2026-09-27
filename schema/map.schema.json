@@ -37,7 +37,7 @@
       }
     },
     "intPair": { "type": "array", "items": { "type": "integer", "minimum": 1 }, "minItems": 2, "maxItems": 2 },
-    "poiIcon": { "enum": ["dot", "house", "castle", "tower", "gate", "ruin", "tent", "campfire", "pick", "cave", "peak", "tree", "farm", "anchor", "bridge", "shrine", "skull", "chest", "star", "flag", "quest", "question"] },
+    "poiIcon": { "enum": ["dot", "house", "castle", "tower", "gate", "ruin", "church", "shrine", "farm", "windmill", "lighthouse", "well", "tent", "campfire", "bed", "tavern", "shop", "coin", "hospital", "book", "shield", "info", "fuel", "parking", "car", "truck", "bus", "train", "cart", "ship", "boat", "anchor", "plane", "helipad", "bridge", "signpost", "pick", "factory", "warehouse", "gear", "power", "antenna", "peak", "cave", "tree", "water", "fish", "paw", "fire", "star", "flag", "quest", "question", "skull", "swords", "chest", "key", "eye"] },
     "color": { "type": "string", "pattern": "^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$" },
     "point": {
       "type": "array",

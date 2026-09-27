@@ -1,4 +1,4 @@
-// Terrain panel: calculator for Unreal Engine Mesh Terrain (MeshPartition
+// Mesh Terrain dropdown: calculator for Unreal Engine Mesh Terrain (MeshPartition
 // "Create Rectangle" / "Import Heightmap"). Size comes from the map bounds;
 // the chosen grid is stored in map.json → terrain (see core/terrain.js), so
 // people and agents read the same numbers. Also toggles the section / quad
@@ -42,6 +42,7 @@ export function mountTerrain(root, { canvas }) {
   function render() {
     renderKeepingFocus(body, () => {
       clear(body);
+      body.append(h('div', { class: 'terrain-drop-head' }, icon('terrain'), h('span', {}, t('terrain.title'))));
       const doc = store.doc;
       const meta = doc.meta;
       const u = unitLabel(meta.units);

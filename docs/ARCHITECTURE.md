@@ -319,7 +319,7 @@ section layout (explicit, or an estimate with square sections in automatic
 mode), the heightmap size (resolution + 1 per axis) and warnings.
 `quadOptions`, `resolutionForQuad`, `explicitFor`, `autoSections`,
 `terrainBlock` (canonical block to store) and `unrealSettingsText` (values to
-type into Unreal) are shared by the Terrain panel (`panels/terrain.js`), the
+type into Unreal) are shared by the Mesh Terrain dropdown (`panels/terrain.js`, opened under its button in the top pill), the
 canvas overlay (`canvas.renderTerrainOverlay`, a UI pref) and the CLI
 `terrain` command. The text export adds a "Terrain grid" line when the map
 has a `terrain` block.

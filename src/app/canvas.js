@@ -232,7 +232,7 @@ export class Canvas {
   }
 
   /**
-   * Unreal Mesh Terrain grid on the map (Terrain panel toggle): section borders
+   * Unreal Mesh Terrain grid on the map (Mesh Terrain dropdown toggle): section borders
    * always, individual quads once a quad is at least 6 px on screen. Only the
    * lines inside the visible part of the bounds are drawn.
    */

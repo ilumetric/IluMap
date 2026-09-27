@@ -1,6 +1,6 @@
 // Floating pills around the canvas:
 //   top-left     map name (inline rename) + save, unsaved dot, file-link tooltip
-//   top-centre   Layers + Terrain panel toggles, grid / labels / background toggles, Export menu
+//   top-centre   Layers panel toggle, Mesh Terrain dropdown, grid / labels / background toggles, Export menu
 //   top-right    undo / redo, right sidebar toggle
 //   bottom-right snap + flipY toggles, zoom − / % / +, fit, shortcuts, settings; cursor read-out above
 //   bottom-centre (above the dock) tool hint / status HUD
@@ -10,7 +10,7 @@ import { openBackgroundPopover } from './toolbar.js';
 import { zoneOf, isLand, findById } from '../../core/model.js';
 import { h } from '../dom.js';
 import { icon } from './icons.js';
-import { openMenu } from './menu.js';
+import { openMenu, openPopover } from './menu.js';
 import { persistent } from '../projects.js';
 import { t, plural, onLangChange } from '../i18n/index.js';
 import { fmtNum, unitLabel } from '../i18n/format.js';
@@ -78,12 +78,16 @@ export function mountTitlePill() {
  * Top-centre pill: Layers panel toggle · view toggles (grid, labels,
  * background image) · Export menu with a scope switch (whole map / selection).
  */
-export function mountPanelToggles({ panels }) {
+export function mountPanelToggles({ panels, terrainBody }) {
   const root = document.getElementById('panel-toggles');
   const layersLabel = h('span', {});
   const layers = h('button', { type: 'button', class: 'pill-btn', 'aria-pressed': 'false', onclick: () => panels.layers.toggle() }, icon('layers'), layersLabel);
   const terrainLabel = h('span', {});
-  const terrain = h('button', { type: 'button', class: 'pill-btn', 'aria-pressed': 'false', onclick: () => panels.terrain.toggle() }, icon('terrain'), terrainLabel);
+  const terrain = h('button', { type: 'button', class: 'pill-btn', 'aria-haspopup': 'dialog' }, icon('terrain'), terrainLabel, icon('chevronDown'));
+  // Mesh Terrain calculator drops down under its button (same body every time, so it keeps its state)
+  const openTerrain = () => openPopover(terrainBody, { anchor: terrain, side: 'bottom', align: 'center', className: 'terrain-pop' });
+  terrain.addEventListener('click', openTerrain);
+  on('toggle-terrain', openTerrain);
 
   const grid = h('button', { type: 'button', class: 'icon-btn toggle', onclick: () => change((d) => { d.view.grid.visible = !(d.view.grid.visible !== false); }) }, icon('grid'));
   const labels = h('button', {
@@ -144,9 +148,6 @@ export function mountPanelToggles({ panels }) {
     const lo = panels.layers.isOpen();
     layers.classList.toggle('on', lo);
     layers.setAttribute('aria-pressed', String(lo));
-    const to = panels.terrain.isOpen();
-    terrain.classList.toggle('on', to);
-    terrain.setAttribute('aria-pressed', String(to));
     const g = store.doc.view.grid?.visible !== false;
     grid.classList.toggle('on', g);
     grid.setAttribute('aria-pressed', String(g));

@@ -31,11 +31,18 @@ export const LAND_MODES = ['islands', 'filled'];
 export const TOWER_MODES = ['none', 'vertices', 'auto'];
 export const STYLE_PRESETS = ['graphite', 'blueprint', 'parchment'];
 
-/** Built-in POI symbols (paths in core/render-svg.js ICONS). */
-export const POI_ICONS = [
-  'dot', 'house', 'castle', 'tower', 'gate', 'ruin', 'tent', 'campfire', 'pick', 'cave', 'peak', 'tree',
-  'farm', 'anchor', 'bridge', 'shrine', 'skull', 'chest', 'star', 'flag', 'quest', 'question',
-];
+/** Built-in POI symbols (paths in core/render-svg.js ICONS), grouped for the icon picker. */
+export const POI_ICON_GROUPS = {
+  settlements: ['dot', 'house', 'castle', 'tower', 'gate', 'ruin', 'church', 'shrine', 'farm', 'windmill', 'lighthouse', 'well', 'tent', 'campfire', 'bed'],
+  services: ['tavern', 'shop', 'coin', 'hospital', 'book', 'shield', 'info', 'fuel', 'parking'],
+  transport: ['car', 'truck', 'bus', 'train', 'cart', 'ship', 'boat', 'anchor', 'plane', 'helipad', 'bridge', 'signpost'],
+  industry: ['pick', 'factory', 'warehouse', 'gear', 'power', 'antenna'],
+  nature: ['peak', 'cave', 'tree', 'water', 'fish', 'paw', 'fire'],
+  markers: ['star', 'flag', 'quest', 'question', 'skull', 'swords', 'chest', 'key', 'eye'],
+};
+
+/** Every built-in POI symbol name. */
+export const POI_ICONS = Object.values(POI_ICON_GROUPS).flat();
 
 export const ID_RE = /^[a-z0-9_]+$/;
 const COLOR_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;

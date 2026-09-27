@@ -2,9 +2,9 @@
 // A document's `style` only stores the preset name plus overrides; the
 // effective style is resolveStyle(doc.style).
 
-import { POI_ICONS } from './schema.js';
+import { POI_ICONS, POI_ICON_GROUPS } from './schema.js';
 
-export { POI_ICONS };
+export { POI_ICONS, POI_ICON_GROUPS };
 
 export const STATUS_COLORS = {
   idea: '#9aa5b1',

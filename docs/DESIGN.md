@@ -112,7 +112,10 @@ they live in `core/render-svg.js` because exports need them.
   * top-left **title pill**: logo, map name (click / `F2` to rename inline),
     save button with the yellow unsaved dot; the tooltip says whether the map
     is linked to a file.
-  * top-centre **view pill**: the Layers panel toggle (text + icon), the view
+  * top-centre **view pill**: the Layers panel toggle (text + icon), the
+    **Mesh Terrain** dropdown button (a 360px popover under the button with the
+    calculator; `T`; clicking outside closes it and commits the field being
+    edited), the view
     toggles grid (`G`), labels and background image (popover: opacity,
     calibrate, fit, replace, remove), then the **Export** menu. The menu
     starts with a scope switch — *Whole map* / *Selection (n)* (disabled when
@@ -146,8 +149,9 @@ they live in `core/render-svg.js` because exports need them.
   header (icon, title, close) and a scrolling body, max height 70vh, docked
   next to the tool stack. Dragging the header floats it (position saved in
   the UI prefs); double-clicking the header docks it again.
-* **POI icon picker** (`ui/poi-icons.js`): a 252px popover with a 6-column
-  grid of the map symbols (36px cells, selected = teal ring); from the
+* **POI icon picker** (`ui/poi-icons.js`): a 300px popover with the map
+  symbols in groups (places, services, transport, industry, nature, markers;
+  7-column grids of 36px cells, selected = teal ring, scrolls above 440px); from the
   Inspector it starts with a "From type (…)" row that clears the override.
 
 The chrome on the canvas reacts to the width of the stage (a CSS size

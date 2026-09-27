@@ -50,7 +50,7 @@ add their own fields under an `x_` prefix (e.g. `x_questGiver`).
 ## `terrain` (optional)
 
 The Unreal Engine **Mesh Terrain** grid chosen with the Terrain calculator
-(editor: top bar → *Terrain*, `T`; CLI: `terrain`). The mesh size is not
+(editor: top bar → *Mesh Terrain* dropdown, `T`; CLI: `terrain`). The mesh size is not
 stored here: it is the size of `view.bounds`, in world units.
 
 ```jsonc
@@ -204,11 +204,16 @@ Gate ids share the global id namespace and can be link endpoints.
 }
 ```
 
-POI icons (`style.poiTypes.<type>.icon` and the per-POI `icon` override):
-`dot`, `house`, `castle`, `tower`, `gate`, `ruin`, `tent`, `campfire`, `pick`,
-`cave`, `peak`, `tree`, `farm`, `anchor`, `bridge`, `shrine`, `skull`,
-`chest`, `star`, `flag`, `quest`, `question`. An unknown name is a
-validation warning and falls back to the type icon.
+POI icons (`style.poiTypes.<type>.icon` and the per-POI `icon` override), grouped as in the editor's picker:
+
+* settlements: `dot`, `house`, `castle`, `tower`, `gate`, `ruin`, `church`, `shrine`, `farm`, `windmill`, `lighthouse`, `well`, `tent`, `campfire`, `bed`
+* services: `tavern`, `shop`, `coin`, `hospital`, `book`, `shield`, `info`, `fuel`, `parking`
+* transport: `car`, `truck`, `bus`, `train`, `cart`, `ship`, `boat`, `anchor`, `plane`, `helipad`, `bridge`, `signpost`
+* industry: `pick`, `factory`, `warehouse`, `gear`, `power`, `antenna`
+* nature: `peak`, `cave`, `tree`, `water`, `fish`, `paw`, `fire`
+* markers: `star`, `flag`, `quest`, `question`, `skull`, `swords`, `chest`, `key`, `eye`
+
+An unknown name is a validation warning and falls back to the type icon.
 
 ## Link
 

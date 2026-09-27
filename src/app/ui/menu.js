@@ -11,6 +11,8 @@ export function closeMenu() {
   if (!current) return;
   const c = current;
   current = null;
+  // commit a field that is being edited inside the popover (its change event fires on blur)
+  if (c.el.contains(document.activeElement)) document.activeElement.blur();
   c.el.remove();
   c.anchor?.classList.remove('menu-open');
   c.anchor?.setAttribute?.('aria-expanded', 'false');
@@ -109,6 +111,6 @@ export function openMenu(items, opts = {}) {
 
 /** Show arbitrary content in a popover card. */
 export function openPopover(content, opts = {}) {
-  const el = h('div', { class: 'menu-pop popover chrome', role: 'dialog' }, content);
+  const el = h('div', { class: `menu-pop popover chrome${opts.className ? ` ${opts.className}` : ''}`, role: 'dialog' }, content);
   return show(el, opts);
 }

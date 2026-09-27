@@ -40,7 +40,6 @@ const canvas = new Canvas($('#stage'), { getTool: () => TOOLS[store.tool] });
 const rightbar = mountRightbar();
 const panels = {
   layers: createPanel({ id: 'layers', titleKey: 'panels.layers.title', icon: 'layers', dock: 'left', width: 272 }),
-  terrain: createPanel({ id: 'terrain', titleKey: 'terrain.title', icon: 'terrain', dock: 'left', width: 320 }),
 };
 
 mountLayers(panels.layers.body, { canvas });
@@ -49,7 +48,9 @@ const mapSettings = h('div', { class: 'map-settings' });
 mountMapSettings(mapSettings, { canvas });
 mountInspector(rightbar.inspectorBody, { canvas, mapSettings });
 mountStyle(rightbar.styleBody);
-mountTerrain(panels.terrain.body, { canvas });
+// Mesh Terrain calculator: a dropdown under its button in the top pill (chrome.js)
+const terrainBody = h('div', { class: 'terrain-drop' });
+mountTerrain(terrainBody, { canvas });
 
 on('open-panel', (id) => (panels[id] ? panels[id].open() : rightbar.show(id)));
 
@@ -79,7 +80,7 @@ const redoCmd = () => { if (!redo()) toast(t('toast.nothingToRedo'), { timeout: 
 // --- chrome ------------------------------------------------------------------------
 const sidebar = mountSidebar({ openSettings });
 const titlePill = mountTitlePill();
-mountPanelToggles({ panels });
+mountPanelToggles({ panels, terrainBody });
 mountHistory({ undoCmd, redoCmd, rightbar });
 mountToolbar({ tools: TOOLS, activateTool, deleteSelection, panels });
 mountDock();
@@ -172,7 +173,7 @@ document.addEventListener('keydown', (e) => {
       change((d) => { d.view.grid.visible = !(d.view.grid.visible !== false); });
       break;
     case 'f': case 'F': canvas.fit(); break;
-    case 't': case 'T': panels.terrain.toggle(); break;
+    case 't': case 'T': emit('toggle-terrain'); break;
     case '+': case '=': canvas.zoomBy(1.4); break;
     case '-': case '_': canvas.zoomBy(1 / 1.4); break;
     case '?': showHelp(); break;

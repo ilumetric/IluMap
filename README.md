@@ -91,7 +91,9 @@ memory for the session only.
   the same world coordinates; SVG/PNG are cropped to the selection, masks
   keep the map bounds so they line up with the whole-map masks.
 - **POI icons:** every POI type has a colour and an icon (Style tab → *POI
-  types*, click the icon to pick from 22 symbols). A single point can
+  types*, click the icon to pick from 58 symbols in six groups: places,
+  services, transport — car, truck, bus, train, ship, plane… — industry,
+  nature, markers). A single point can
   override its icon and colour in the Inspector.
 - **Settings** (bottom of the sidebar, `Ctrl+,`, or the gear in the zoom pill
   while the sidebar is collapsed): language (Русский / English),
@@ -184,7 +186,7 @@ and a programmatic example.
 
 Unreal's Mesh Terrain (MeshPartition *Create Rectangle* / *Import Heightmap*)
 asks for a mesh size, a resolution (quads per axis) and a section split. The
-**Terrain** panel (top bar, `T`) works these out for your map:
+**Mesh Terrain** dropdown (top bar, `T`) works these out for your map:
 
 - the mesh size is the map's bounds, in world units (cm);
 - pick a quad size (25 cm … 8 m presets, or any value) or type the resolution;
@@ -241,7 +243,7 @@ The editor has the same export under **Export → Masks…** (top bar).
 | `Ctrl+S` / `Ctrl+Shift+S` / `Ctrl+O` | Save to map.json / save as / open a map.json as a local map |
 | `Ctrl+B` · `Ctrl+K` · `Ctrl+,` | Show / hide the sidebar · search local maps · settings (language, theme) |
 | `G` · `/` · `?` · `F2` | Grid · search POIs · help · rename the map |
-| `[` · `]` · `T` | Layers panel · right sidebar · Terrain calculator |
+| `[` · `]` · `T` | Layers panel · right sidebar · Mesh Terrain calculator |
 
 ## Development
 
