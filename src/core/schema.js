@@ -29,7 +29,7 @@ export const POI_STATUSES = ['idea', 'approved', 'slice', 'cut'];
 export const LINK_TYPES = ['road', 'rail', 'river', 'path', 'quest', 'sight'];
 export const LAND_MODES = ['islands', 'filled'];
 export const TOWER_MODES = ['none', 'vertices', 'auto'];
-export const STYLE_PRESETS = ['blueprint', 'parchment'];
+export const STYLE_PRESETS = ['graphite', 'blueprint', 'parchment'];
 
 export const ID_RE = /^[a-z0-9_]+$/;
 const COLOR_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;

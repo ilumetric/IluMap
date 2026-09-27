@@ -1,5 +1,5 @@
 // Select / move tool: click to select (Shift toggles), drag to move features
-// and POIs (Shift while dragging a POI snaps to the grid), drag vertices,
+// and POIs (snapping to the grid follows the snap toggle, Shift inverts it), drag vertices,
 // Alt+click on a selected feature's segment inserts a vertex, double-click a
 // vertex deletes it, drag on empty space for a box selection.
 
@@ -67,7 +67,7 @@ export default {
         const r = nearestPointOnPolyline(ctx.world, f.points, closed);
         const at = r.segIndex + 1;
         beginChange();
-        insertVertex(f, at, ctx.shift ? ctx.canvas.snap(ctx.world) : ctx.world.map(Math.round));
+        insertVertex(f, at, ctx.snap ? ctx.canvas.snap(ctx.world) : ctx.world.map(Math.round));
         liveUpdate();
         drag = { type: 'vertex', feature: f, index: at, start: ctx.screen, moved: true, inserted: true };
         return;
@@ -101,7 +101,7 @@ export default {
     if (drag.type === 'vertex') {
       if (!drag.moved || drag.inserted) { beginChange(); drag.inserted = false; }
       drag.moved = true;
-      const p = ctx.shift ? ctx.canvas.snap(ctx.world) : ctx.world.map(Math.round);
+      const p = ctx.snap ? ctx.canvas.snap(ctx.world) : ctx.world.map(Math.round);
       drag.feature.points[drag.index] = p;
       liveUpdate();
     } else if (drag.type === 'move') {
@@ -109,9 +109,9 @@ export default {
       drag.moved = true;
       let dx = ctx.world[0] - drag.startWorld[0];
       let dy = ctx.world[1] - drag.startWorld[1];
-      // Shift: snap the primary POI to the grid, move everything by the same delta
+      // snapping: snap the primary POI to the grid, move everything by the same delta
       const prim = drag.items.find((it) => it.item.id === drag.primary);
-      if (ctx.shift && prim?.kind === 'poi') {
+      if (ctx.snap && prim?.kind === 'poi') {
         const s = ctx.canvas.snap([prim.x + dx, prim.y + dy]);
         dx = s[0] - prim.x;
         dy = s[1] - prim.y;

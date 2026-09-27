@@ -15,9 +15,15 @@ derived from that file.
 -->
 > _Screenshot coming soon — open the demo on GitHub Pages to see the editor._
 
-- **Human-friendly:** a dark "blueprint" (or light "parchment") editor with
-  layers, smooth curves, a wall builder with towers and gates, snapping, a
-  measure tool, background-image calibration and undo/redo.
+- **Human-friendly:** a calm, ChatGPT-style editor — a full-bleed canvas with
+  floating toolbars, a layer dock, a minimap and draggable panels (dark or
+  light theme) — with layers, smooth curves, a wall builder with towers and
+  gates, grid snapping, a measure tool, background-image calibration and
+  undo/redo. Maps are drawn in the `graphite`, `blueprint` or `parchment`
+  style.
+- **Local maps:** the sidebar lists your maps as browser working copies
+  (IndexedDB), autosaved on every change, including their background images.
+  The `map.json` in your repo stays the source of truth.
 - **Agent-friendly:** stable human-readable ids (`mine_old`, `village`), one
   `[x, y]` per line so moving one vertex changes one line of the diff, a CLI
   that prints the map as prose ("Old Mine is 8.5 km N of Millbrook…"), and a
@@ -37,16 +43,45 @@ python -m http.server 8765        # then open http://localhost:8765/
 npx serve .
 ```
 
-ES modules do not load from `file://`, so a server is needed. The editor opens
-the demo map (`examples/demo/map.json`); `?map=path/to/map.json` loads another
-map from the same site.
+ES modules do not load from `file://`, so a server is needed. On first launch the
+editor creates a local copy of the demo map (`examples/demo/map.json`);
+`?map=path/to/map.json` opens another map from the same site.
 
-Work on your own map with **File → Open…** (`Ctrl+O`). In Chromium browsers the
-File System Access API keeps a handle to the file, so `Ctrl+S` writes straight
-back to `map.json` in your working copy. Other browsers download the file
-instead. A draft is autosaved to `localStorage` as a safety net only — the
-JSON file is always the source of truth. You can also drag a `map.json` onto
-the canvas, or an image to use as a calibrated background.
+### Local maps and map.json
+
+The left sidebar (`Ctrl+B` to hide it) lists your **local maps**: working
+copies kept in the browser (IndexedDB), autosaved on every change, with
+their background images, so a reload never loses work. **New map**, **Open
+file** (`Ctrl+O`), **Search maps** (`Ctrl+K`) and a "⋯" menu per map
+(rename, duplicate, export JSON, delete) manage them.
+
+**Browser projects are a working copy; commit `map.json`.** In Chromium
+browsers **Open file** keeps a handle to the file (also across reloads), so
+`Ctrl+S` writes straight back to `map.json` in your repo; the top-left pill's
+tooltip says whether the map is linked to a file, and a dot marks changes not
+yet saved to it. Other browsers download the file instead. You can also drag
+a `map.json` onto the canvas (it becomes a local map), or an image to use as a
+calibrated background. Without IndexedDB (some private windows) maps live in
+memory for the session only.
+
+### The editor at a glance
+
+- **Left toolbar:** Layers panel · Select, Pan · Line, Polygon, Wall, POI ·
+  Measure, Calibrate, Delete. Draw tools carry a coloured underline: the
+  colour of the layer they will draw into.
+- **Top:** map name (click to rename) and Save · panel toggles (Layers,
+  Points, Inspector, Style) and the Export menu · undo / redo.
+- **Bottom:** minimap and scale bar · the **layer dock** (visibility of the
+  active layer, one chip per layer, the type and colour for new features) ·
+  snap and flipY toggles, zoom, cursor coordinates.
+- **Right toolbar:** grid, labels, background image (opacity, calibrate),
+  fit, keyboard shortcuts.
+- **Panels** float over the canvas; drag them by the header, double-click the
+  header to dock them again. The Inspector opens on selection (pin to turn
+  that off) and shows the map's own settings when nothing is selected.
+- **Settings** (bottom of the sidebar): interface theme (System / Dark /
+  Light), map style for new maps, coordinate units, autosave, clearing local
+  maps.
 
 ### Enable GitHub Pages
 
@@ -145,7 +180,7 @@ node tools/ilumap.mjs mask map.json --source rivers,roads --feather 8 --out mask
 
 In Gaea, load `mask_land.png` with a *File* node sized to the same world extent
 and use it as the island mask; zone masks drive erosion/texturing per biome.
-The editor has the same export under **Export → Masks…**.
+The editor has the same export under **Export → Masks…** (top bar).
 
 ## Keyboard shortcuts
 
@@ -154,18 +189,20 @@ The editor has the same export under **Export → Masks…**.
 | `V` | Select / move (Shift+click adds, drag on empty space box-selects) |
 | `H`, hold `Space`, middle mouse | Pan |
 | Wheel · `F` · `+` / `-` | Zoom to cursor · fit · zoom |
-| `L` / `P` / `W` | Line / polygon / wall tool (drawing goes into the active layer) |
+| `L` / `P` / `W` | Line / polygon / wall tool (drawing goes into the active layer — pick it in the dock) |
 | `O` | Place a POI (or drag one from the POI list) |
 | `M` | Measure |
 | `K` | Calibrate the background image (2 points) |
 | `Enter`, double-click, right-click | Finish drawing |
 | `C` · `Backspace` · `Esc` | Close path · remove last point · cancel |
-| `Shift` | Snap to grid while drawing / dragging a POI |
+| `Shift` | Invert grid snapping (magnet toggle, bottom right) while drawing / dragging a POI |
 | `Alt`+click segment · double-click vertex | Insert · delete a vertex |
 | `Delete` · arrows | Delete · nudge the selection |
 | `Ctrl+Z` / `Ctrl+Y` | Undo / redo |
-| `Ctrl+S` / `Ctrl+Shift+S` / `Ctrl+O` | Save / save as / open |
-| `G` · `/` · `?` · `[` `]` | Grid · search POIs · help · toggle panels |
+| `Ctrl+S` / `Ctrl+Shift+S` / `Ctrl+O` | Save to map.json / save as / open a map.json as a local map |
+| `Ctrl+B` · `Ctrl+K` | Show / hide the sidebar · search local maps |
+| `G` · `/` · `?` · `F2` | Grid · search POIs · help · rename the map |
+| `[` · `]` | Layers panel · Points + Inspector panels |
 
 ## Development
 
@@ -176,7 +213,8 @@ npm test          # = node --test "test/*.test.js" (no dependencies to install)
 - `src/core/` — pure ES modules (no DOM): format, validation, geometry,
   calibration, SVG renderer, mask rasteriser, PNG encoder, text export. Shared
   by the editor and the CLI.
-- `src/app/` — the editor UI (DOM only).
+- `src/app/` — the editor UI (DOM only). UI look and components:
+  [docs/DESIGN.md](docs/DESIGN.md).
 - `tools/ilumap.mjs` — the CLI.
 
 No build step, no npm packages — keep it that way.

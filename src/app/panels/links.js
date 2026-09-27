@@ -5,7 +5,8 @@ import { LINK_TYPES, LAYERS } from '../../core/schema.js';
 import { findById } from '../../core/model.js';
 import { distance } from '../../core/geometry.js';
 import { formatLength } from '../../core/text-export.js';
-import { h, icon, toast } from '../dom.js';
+import { h, toast } from '../dom.js';
+import { icon } from '../ui/icons.js';
 
 function endpointName(id) {
   const hit = findById(store.doc, id);

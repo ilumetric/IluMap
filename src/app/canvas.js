@@ -1,5 +1,7 @@
-// SVG viewport: pan/zoom, ocean, calibrated background image, grid, bounds,
-// layer content (via core/render-svg.js), selection + vertex handles, tool overlay.
+// SVG viewport: pan/zoom, ocean (inside the bounds only), calibrated background
+// image, grid, bounds, layer content (via core/render-svg.js), selection +
+// vertex handles, tool overlay. Outside the bounds the stage shows the UI's
+// dot grid, which follows pan/zoom through CSS custom properties.
 
 import { store, on, emit, isLayerLocked, visibleLayers } from './state.js';
 import { renderParts, renderGrid, viewRectOfBounds, toView, fromView, esc } from '../core/render-svg.js';
@@ -16,10 +18,13 @@ export class Canvas {
     this.stage = stage;
     this.svg = stage.querySelector('#canvas');
     this.getTool = getTool;
-    this.svg.innerHTML = '<defs id="cv-defs"></defs><g id="cv-world"><g id="cv-bg"></g><g id="cv-grid"></g>'
+    this.svg.innerHTML = '<defs id="cv-static"><clipPath id="cv-bounds-clip"><rect id="cv-clip-rect"/></clipPath></defs>'
+      + '<defs id="cv-defs"></defs><g id="cv-world"><g id="cv-ocean"></g><g id="cv-bg"></g><g id="cv-grid" clip-path="url(#cv-bounds-clip)"></g>'
       + '<g id="cv-bounds"></g><g id="cv-content"></g><g id="cv-overlay"></g><g id="cv-tool"></g></g>';
     this.g = {
       defs: this.svg.querySelector('#cv-defs'),
+      clip: this.svg.querySelector('#cv-clip-rect'),
+      ocean: this.svg.querySelector('#cv-ocean'),
       world: this.svg.querySelector('#cv-world'),
       bg: this.svg.querySelector('#cv-bg'),
       grid: this.svg.querySelector('#cv-grid'),
@@ -90,15 +95,27 @@ export class Canvas {
 
   // --- view ------------------------------------------------------------------
 
+  /** Screen margins kept free of the map when fitting (floating chrome). */
+  fitInsets() {
+    const { w, h } = this.size();
+    const big = w > 900 && h > 560;
+    return big ? { l: 72, r: 64, t: 64, b: 84 } : { l: 12, r: 12, t: 12, b: 12 };
+  }
+
   fit() {
     const { w, h } = this.size();
     const r = viewRectOfBounds(store.doc);
     const bw = r.x1 - r.x0;
     const bh = r.y1 - r.y0;
-    const k = Math.min(w / bw, h / bh) * 0.92;
+    const ins = this.fitInsets();
+    const aw = Math.max(40, w - ins.l - ins.r);
+    const ah = Math.max(40, h - ins.t - ins.b);
+    const k = Math.min(aw / bw, ah / bh) * 0.96;
     this.kFit = k;
     this.autoFit = true;
-    this.view = { k, tx: w / 2 - ((r.x0 + r.x1) / 2) * k, ty: h / 2 - ((r.y0 + r.y1) / 2) * k };
+    const cx = ins.l + aw / 2;
+    const cy = ins.t + ah / 2;
+    this.view = { k, tx: cx - ((r.x0 + r.x1) / 2) * k, ty: cy - ((r.y0 + r.y1) / 2) * k };
     this.invalidate('transform', 'content', 'overlay', 'grid', 'tool', 'bg');
   }
 
@@ -149,6 +166,7 @@ export class Canvas {
     if (f.has('transform')) {
       const { k, tx, ty } = this.view;
       this.g.world.setAttribute('transform', `matrix(${k} 0 0 ${k} ${r2(tx)} ${r2(ty)})`);
+      this.updateDots();
       emit('view');
     }
     if (f.has('content')) this.renderContent();
@@ -169,8 +187,6 @@ export class Canvas {
     this.style = parts.style;
     this.g.defs.innerHTML = parts.defs;
     this.g.content.innerHTML = parts.body;
-    this.stage.style.background = parts.style.ocean;
-    document.documentElement.dataset.theme = parts.style.preset;
     const locked = [...Object.keys(store.prefs.layers)].filter(isLayerLocked);
     this.g.content.dataset.locked = locked.join(' ');
   }
@@ -182,13 +198,29 @@ export class Canvas {
     return { x0: a[0], y0: a[1], x1: b[0], y1: b[1] };
   }
 
+  /** The UI dot grid (CSS background of the stage) follows pan and zoom. */
+  updateDots() {
+    const { k, tx, ty } = this.view;
+    // spacing stays between 20 and 40 px: doubles/halves as the zoom crosses powers of two
+    const rel = Math.log2(Math.max(1e-9, k / this.kFit));
+    const size = 20 * 2 ** (rel - Math.floor(rel));
+    const st = this.stage.style;
+    st.setProperty('--dot-size', `${r2(size)}px`);
+    st.setProperty('--dot-x', `${r2(tx % size)}px`);
+    st.setProperty('--dot-y', `${r2(ty % size)}px`);
+  }
+
   renderGrid() {
     const doc = store.doc;
     const rs = this.style || resolveStyle(doc.style);
     const upp = this.unitsPerPx;
-    this.g.grid.innerHTML = doc.view.grid?.visible !== false ? renderGrid(doc, this.visibleViewRect(), { unitsPerPx: upp, resolvedStyle: rs }) : '';
     const r = viewRectOfBounds(doc);
-    this.g.bounds.innerHTML = `<rect x="${r.x0}" y="${r.y0}" width="${r.x1 - r.x0}" height="${r.y1 - r.y0}" fill="none" stroke="${rs.boundsColor}" stroke-width="${r2(1.5 * upp)}" stroke-dasharray="${r2(8 * upp)} ${r2(5 * upp)}" opacity="0.8"/>`;
+    const rect = `x="${r.x0}" y="${r.y0}" width="${r.x1 - r.x0}" height="${r.y1 - r.y0}"`;
+    // ocean only inside the world bounds; outside, the stage's dot grid shows through
+    this.g.ocean.innerHTML = `<rect ${rect} fill="${rs.ocean}"/>`;
+    for (const [k, v] of Object.entries({ x: r.x0, y: r.y0, width: r.x1 - r.x0, height: r.y1 - r.y0 })) this.g.clip.setAttribute(k, v);
+    this.g.grid.innerHTML = doc.view.grid?.visible !== false ? renderGrid(doc, this.visibleViewRect(), { unitsPerPx: upp, resolvedStyle: rs }) : '';
+    this.g.bounds.innerHTML = `<rect ${rect} fill="none" stroke="${rs.boundsColor}" stroke-width="${r2(1 * upp)}" stroke-dasharray="${r2(6 * upp)} ${r2(5 * upp)}" opacity="0.55"/>`;
     this.updateScaleBar();
   }
 
@@ -276,6 +308,9 @@ export class Canvas {
 
   // --- events -------------------------------------------------------------------
 
+  /** Grid snapping for this event: the snap toggle, inverted while Shift is held. */
+  snapFor(e) { return !!e.shiftKey !== !!store.prefs.snap; }
+
   hitFromTarget(target) {
     if (!target || !target.closest) return null;
     const v = target.closest('[data-vertex]');
@@ -295,6 +330,7 @@ export class Canvas {
       e, screen, view,
       world: fromView(store.doc, view),
       shift: e.shiftKey, alt: e.altKey, ctrl: e.ctrlKey || e.metaKey,
+      snap: this.snapFor(e),
       button: e.button,
       canvas: this,
       ...extra,
@@ -367,26 +403,38 @@ export class Canvas {
     svg.addEventListener('pointercancel', end);
     svg.addEventListener('pointerleave', () => { store.cursor = null; emit('cursor', null); });
 
-    // drag & drop: POIs from the list, map.json / images from the OS
+    // drag & drop: POIs from the list (onto the map, not onto floating chrome),
+    // map.json / images from the OS (anywhere on the stage)
+    const overChrome = (e) => !!e.target.closest?.('.chrome');
     this.stage.addEventListener('dragover', (e) => {
       const types = [...(e.dataTransfer?.types || [])];
-      if (types.includes('application/x-ilumap-poi') || types.includes('Files')) {
+      const files = types.includes('Files');
+      if (files || (types.includes('application/x-ilumap-poi') && !overChrome(e))) {
         e.preventDefault();
-        e.dataTransfer.dropEffect = types.includes('Files') ? 'copy' : 'move';
+        e.dataTransfer.dropEffect = files ? 'copy' : 'move';
+        this.stage.classList.toggle('drop-files', files);
         this.stage.classList.add('drop-target');
+      } else {
+        this.stage.classList.remove('drop-target', 'drop-files');
       }
     });
     this.stage.addEventListener('dragleave', (e) => {
-      if (!this.stage.contains(e.relatedTarget)) this.stage.classList.remove('drop-target');
+      if (!this.stage.contains(e.relatedTarget)) this.stage.classList.remove('drop-target', 'drop-files');
     });
     this.stage.addEventListener('drop', (e) => {
-      this.stage.classList.remove('drop-target');
+      this.stage.classList.remove('drop-target', 'drop-files');
       const id = e.dataTransfer.getData('application/x-ilumap-poi');
-      e.preventDefault();
       if (id) {
-        emit('poi-drop', { id, world: this.clientToWorld(e.clientX, e.clientY), shift: e.shiftKey });
+        if (overChrome(e)) return;
+        e.preventDefault();
+        emit('poi-drop', { id, world: this.clientToWorld(e.clientX, e.clientY), snap: this.snapFor(e) });
       } else if (e.dataTransfer.files?.length) {
-        emit('files-drop', { files: [...e.dataTransfer.files] });
+        e.preventDefault();
+        // file handles must be requested synchronously, while the drop event is being dispatched
+        const handles = [...(e.dataTransfer.items || [])]
+          .filter((it) => it.kind === 'file' && it.getAsFileSystemHandle)
+          .map((it) => it.getAsFileSystemHandle().catch(() => null));
+        emit('files-drop', { files: [...e.dataTransfer.files], handles });
       }
     });
   }

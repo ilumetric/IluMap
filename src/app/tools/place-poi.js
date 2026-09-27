@@ -7,9 +7,9 @@ export default {
   label: 'POI',
   key: 'O',
   icon: 'poi',
-  hint: () => `Click to place a new “${store.prefs.poiType || 'poi'}” POI · Shift snaps to the grid · drag POIs from the list onto the map`,
+  hint: () => `Click to place a new “${store.prefs.poiType || 'poi'}” POI · Shift toggles grid snapping · drag POIs from the list onto the map`,
   down(ctx) {
-    const [x, y] = ctx.shift ? ctx.canvas.snap(ctx.world) : ctx.world.map(Math.round);
+    const [x, y] = ctx.snap ? ctx.canvas.snap(ctx.world) : ctx.world.map(Math.round);
     const id = nextId(store.doc, 'poi');
     const poi = { id, name: 'New POI', x, y, type: store.prefs.poiType || 'poi', status: 'idea' };
     const z = zoneOf(store.doc, [x, y]);

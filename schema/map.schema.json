@@ -87,7 +87,7 @@
     "style": {
       "type": "object",
       "properties": {
-        "preset": { "type": "string", "enum": ["blueprint", "parchment"] },
+        "preset": { "type": "string", "enum": ["graphite", "blueprint", "parchment"] },
         "ocean": { "$ref": "#/$defs/color" },
         "label": { "$ref": "#/$defs/color" },
         "grid": { "$ref": "#/$defs/color" },

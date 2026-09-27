@@ -1,10 +1,10 @@
 // Single in-memory document + selection + tool state, snapshot undo/redo,
-// dirty flag, localStorage draft autosave and UI prefs.
+// dirty flag (= differs from the file on disk) and UI prefs (localStorage).
+// Persistence of the working copy lives in session.js / projects.js.
 
 import { createEmptyMap, normalize, serialize, findById } from '../core/model.js';
 import { LAYERS, LAYER_KIND } from '../core/schema.js';
 
-const DRAFT_KEY = 'ilumap.draft.v1';
 const PREFS_KEY = 'ilumap.prefs.v1';
 const MAX_UNDO = 200;
 
@@ -27,13 +27,24 @@ function defaultPrefs() {
   for (const l of [...LAYERS, ...PSEUDO_LAYERS]) layers[l] = { visible: true, locked: false };
   return {
     layers,
-    leftOpen: true,
-    rightOpen: true,
-    rightTab: 'inspector',
-    lastPreset: 'blueprint',
+    // floating panels: { open, pos: null | {x, y} } (pos = dragged out of its dock column)
+    panels: {
+      layers: { open: true, pos: null },
+      points: { open: true, pos: null },
+      inspector: { open: true, pos: null },
+      style: { open: false, pos: null },
+    },
+    inspectorAuto: true, // open the inspector when something gets selected
+    sidebarOpen: true,
+    snap: false, // snap to the grid by default (Shift inverts)
+    newMapPreset: 'graphite',
+    autosave: true,
+    coordUnits: 'world', // 'world' | 'display' (cursor read-out)
     poiType: 'poi',
+    newTypes: {}, // layer -> type used for newly drawn features
     lastLineLayer: 'roads',
     lastPolygonLayer: 'land',
+    lastProjectId: null,
     expanded: {},
     poiFilter: { status: '', type: '', zone: '' },
   };
@@ -44,7 +55,12 @@ function loadPrefs() {
   try {
     const raw = JSON.parse(localStorage.getItem(PREFS_KEY) || 'null');
     if (raw && typeof raw === 'object') {
-      Object.assign(p, raw, { layers: { ...p.layers, ...(raw.layers || {}) } });
+      const panels = { ...p.panels };
+      for (const [k, v] of Object.entries(raw.panels || {})) panels[k] = { ...(panels[k] || {}), ...v };
+      Object.assign(p, raw, { layers: { ...p.layers, ...(raw.layers || {}) }, panels });
+      // prefs of the old docked layout
+      for (const k of ['leftOpen', 'rightOpen', 'rightTab', 'lastPreset']) delete p[k];
+      delete p.panels.undefined;
     }
   } catch { /* storage unavailable */ }
   return p;
@@ -57,6 +73,7 @@ export const store = {
   activeLayer: 'land',
   prefs: loadPrefs(),
   file: { handle: null, name: 'map.json', baseUrl: null },
+  project: null, // the local project (session.js) holding this document
   background: null, // runtime: { url, width, height, name, missing }
   savedText: '',
   dirty: false,
@@ -66,7 +83,6 @@ export const store = {
 let undoStack = [];
 let redoStack = [];
 let pending = null;
-let draftTimer = null;
 let prefsTimer = null;
 
 export function savePrefs() {
@@ -76,28 +92,33 @@ export function savePrefs() {
   }, 200);
 }
 
-/** Replace the document (open / new / restore). */
-export function setDoc(doc, { name, handle = null, baseUrl = null, saved = true } = {}) {
+/**
+ * Replace the document (open / new / switch project).
+ * `savedText` (the file content last written or read) restores the dirty state;
+ * otherwise `saved` says whether the document matches its file.
+ */
+export function setDoc(doc, { name, handle = null, baseUrl = null, saved = true, savedText = null } = {}) {
   store.doc = normalize(doc);
   store.selection = new Set();
-  store.file = { handle, name: name || store.file.name || 'map.json', baseUrl };
+  store.file = { handle, name: name || 'map.json', baseUrl };
   undoStack = [];
   redoStack = [];
   pending = null;
   const text = serialize(store.doc);
-  store.savedText = saved ? text : '';
-  store.dirty = !saved;
+  store.savedText = savedText != null ? savedText : saved ? text : '';
+  store.dirty = text !== store.savedText;
   store.background = null;
   if (!LAYERS.includes(store.activeLayer)) store.activeLayer = 'land';
   emit('load');
   emit('doc', { load: true });
   emit('selection');
   emit('dirty');
-  scheduleDraft();
+  emit('file');
 }
 
-export function newDoc(opts = {}) {
-  setDoc(createEmptyMap({ preset: store.prefs.lastPreset || 'blueprint', ...opts }), { name: 'map.json' });
+/** A new empty document using the preset chosen for new maps. */
+export function emptyDoc(opts = {}) {
+  return createEmptyMap({ preset: store.prefs.newMapPreset || 'graphite', ...opts });
 }
 
 /** Start a change: remembers the state before it for undo. Nested calls are merged. */
@@ -140,7 +161,6 @@ function afterChange(text = serialize(store.doc)) {
   store.dirty = text !== store.savedText;
   emit('doc', {});
   if (wasDirty !== store.dirty) emit('dirty');
-  scheduleDraft(text);
 }
 
 function pruneSelection() {
@@ -177,30 +197,6 @@ export function markSaved(text = serialize(store.doc)) {
   store.savedText = text;
   store.dirty = false;
   emit('dirty');
-  clearDraft();
-}
-
-// --- draft autosave (safety net only) ---------------------------------------
-
-function scheduleDraft(text) {
-  clearTimeout(draftTimer);
-  draftTimer = setTimeout(() => {
-    try {
-      if (!store.dirty) { localStorage.removeItem(DRAFT_KEY); return; }
-      localStorage.setItem(DRAFT_KEY, JSON.stringify({ text: text || serialize(store.doc), name: store.file.name, time: Date.now() }));
-    } catch { /* quota or disabled storage */ }
-  }, 800);
-}
-
-export function readDraft() {
-  try {
-    const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null');
-    return d && typeof d.text === 'string' ? d : null;
-  } catch { return null; }
-}
-
-export function clearDraft() {
-  try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
 }
 
 // --- selection / tools / layers ----------------------------------------------

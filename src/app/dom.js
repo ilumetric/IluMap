@@ -1,4 +1,7 @@
-// Small DOM helpers: element builder, toasts, dialogs, downloads, icons.
+// Small DOM helpers: element builder, toasts, dialogs, downloads.
+// UI icons live in ui/icons.js.
+
+import { icon } from './ui/icons.js';
 
 export function h(tag, attrs = {}, ...children) {
   const el = tag.startsWith('svg:')
@@ -69,7 +72,7 @@ export function toast(message, { type = 'info', timeout = 3500, actions = [] } =
   for (const a of actions) {
     el.append(h('button', { class: 'btn btn-small', onclick: () => { close(); a.onClick(); } }, a.label));
   }
-  el.append(h('button', { class: 'toast-x', title: 'Dismiss', onclick: close }, '×'));
+  el.append(h('button', { class: 'toast-x', title: 'Dismiss', 'aria-label': 'Dismiss', onclick: close }, icon('x')));
   host.append(el);
   if (timeout > 0) setTimeout(close, timeout);
   return close;
@@ -78,14 +81,16 @@ export function toast(message, { type = 'info', timeout = 3500, actions = [] } =
 // --- dialogs ------------------------------------------------------------------
 
 /**
- * Modal dialog. fields: [{ name, label, type: 'text'|'number'|'select'|'checkbox'|'textarea'|'color', value, options, step, min, max, hint }]
+ * Modal dialog. `body` is placed before the fields, `footer` after them.
+ * fields: [{ name, label, type: 'text'|'number'|'select'|'checkbox'|'textarea'|'color', value, options, step, min, max, hint }]
  * Resolves to an object of values, or null when cancelled.
  */
-export function openDialog({ title, message, body, fields = [], okText = 'OK', cancelText = 'Cancel', danger = false, wide = false }) {
+export function openDialog({ title, message, body, footer, fields = [], okText = 'OK', cancelText = 'Cancel', danger = false, wide = false }) {
   return new Promise((resolve) => {
     const host = document.getElementById('dialogs');
     const form = h('form', { class: `dialog${wide ? ' dialog-wide' : ''}`, method: 'dialog' });
-    form.append(h('h2', {}, title || ''));
+    form.append(h('div', { class: 'dialog-head' }, h('h2', {}, title || ''),
+      h('button', { type: 'button', class: 'icon-btn', title: 'Close', 'aria-label': 'Close', onclick: () => done(null) }, icon('x'))));
     if (message) form.append(h('p', { class: 'dialog-msg' }, message));
     if (body) form.append(body);
     const inputs = {};
@@ -111,6 +116,7 @@ export function openDialog({ title, message, body, fields = [], okText = 'OK', c
       if (f.hint) row.append(h('small', { class: 'hint' }, f.hint));
       form.append(row);
     }
+    if (footer) form.append(footer);
     const cancel = h('button', { type: 'button', class: 'btn' }, cancelText);
     const ok = h('button', { type: 'submit', class: `btn ${danger ? 'btn-danger' : 'btn-primary'}` }, okText);
     form.append(h('div', { class: 'dialog-actions' }, cancelText ? cancel : null, ok));
@@ -155,40 +161,4 @@ export function download(name, data, mime = 'application/octet-stream') {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 5000);
-}
-
-// --- icons (inline SVG, 20x20, currentColor) --------------------------------
-
-const I = (body) => `<svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
-export const ICON = {
-  select: I('<path d="M4 3l11 6-5 1.5L8 16z" fill="currentColor" fill-opacity=".15"/>'),
-  pan: I('<path d="M10 2v16M2 10h16M10 2l-2 2M10 2l2 2M10 18l-2-2M10 18l2-2M2 10l2-2M2 10l2 2M18 10l-2-2M18 10l-2 2"/>'),
-  line: I('<path d="M3 15c3-8 6 2 9-5s3-4 5-6"/><circle cx="3" cy="15" r="1.4" fill="currentColor"/><circle cx="17" cy="4" r="1.4" fill="currentColor"/>'),
-  polygon: I('<path d="M4 6l7-3 6 5-2 8-9 1z" fill="currentColor" fill-opacity=".18"/>'),
-  wall: I('<path d="M3 16V8h2V6h2v2h2V6h2v2h2V6h2v2h2v8z"/><path d="M8.5 16v-3a1.5 1.5 0 0 1 3 0v3"/>'),
-  poi: I('<path d="M10 18s-5-5.2-5-9a5 5 0 0 1 10 0c0 3.8-5 9-5 9z"/><circle cx="10" cy="9" r="1.8"/>'),
-  measure: I('<path d="M2.5 13.5l11-11 4 4-11 11z"/><path d="M6 10l1.5 1.5M8.5 7.5l1.5 1.5M11 5l1.5 1.5"/>'),
-  calibrate: I('<circle cx="10" cy="10" r="6"/><path d="M10 1.5v4M10 14.5v4M1.5 10h4M14.5 10h4"/><circle cx="10" cy="10" r="1" fill="currentColor"/>'),
-  eye: I('<path d="M1.5 10S4.5 4.5 10 4.5 18.5 10 18.5 10 15.5 15.5 10 15.5 1.5 10 1.5 10z"/><circle cx="10" cy="10" r="2.5"/>'),
-  eyeOff: I('<path d="M3 3l14 14M8 5a8 8 0 0 1 2-.5C15.5 4.5 18.5 10 18.5 10a15 15 0 0 1-2.4 3M12 15.2a7 7 0 0 1-2 .3C4.5 15.5 1.5 10 1.5 10a15 15 0 0 1 3.1-3.8"/>'),
-  lock: I('<rect x="4.5" y="9" width="11" height="8" rx="1.5"/><path d="M7 9V6.5a3 3 0 0 1 6 0V9"/>'),
-  unlock: I('<rect x="4.5" y="9" width="11" height="8" rx="1.5"/><path d="M7 9V6.5a3 3 0 0 1 5.8-1"/>'),
-  undo: I('<path d="M7 5L3 9l4 4"/><path d="M3 9h9a5 5 0 0 1 0 10h-2"/>'),
-  redo: I('<path d="M13 5l4 4-4 4"/><path d="M17 9H8a5 5 0 0 0 0 10h2"/>'),
-  plus: I('<path d="M10 4v12M4 10h12"/>'),
-  trash: I('<path d="M4 6h12M8 6V4h4v2M6 6l1 11h6l1-11"/>'),
-  target: I('<circle cx="10" cy="10" r="6"/><circle cx="10" cy="10" r="2"/>'),
-  chevron: I('<path d="M7 5l5 5-5 5"/>'),
-  panelLeft: I('<rect x="2.5" y="3.5" width="15" height="13" rx="1.5"/><path d="M7.5 3.5v13"/>'),
-  panelRight: I('<rect x="2.5" y="3.5" width="15" height="13" rx="1.5"/><path d="M12.5 3.5v13"/>'),
-  help: I('<circle cx="10" cy="10" r="8"/><path d="M7.8 7.8a2.3 2.3 0 1 1 3.2 2.1c-.7.3-1 .8-1 1.5v.4"/><circle cx="10" cy="14.6" r=".6" fill="currentColor"/>'),
-  fit: I('<path d="M3 7V3h4M13 3h4v4M17 13v4h-4M7 17H3v-4"/>'),
-  grip: I('<circle cx="7" cy="5" r="1" fill="currentColor"/><circle cx="13" cy="5" r="1" fill="currentColor"/><circle cx="7" cy="10" r="1" fill="currentColor"/><circle cx="13" cy="10" r="1" fill="currentColor"/><circle cx="7" cy="15" r="1" fill="currentColor"/><circle cx="13" cy="15" r="1" fill="currentColor"/>'),
-};
-
-export function icon(name) {
-  const span = document.createElement('span');
-  span.className = 'ico';
-  span.innerHTML = ICON[name] || '';
-  return span;
 }

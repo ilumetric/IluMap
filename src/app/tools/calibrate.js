@@ -21,7 +21,7 @@ export default {
   icon: 'calibrate',
   hint: () => (store.background?.url
     ? `Calibrate: click a known point on the image (${picked.length + 1} of 2), then type its world coordinates · Esc cancels`
-    : 'Calibrate: load a background image first (drop an image onto the canvas or Map → Background)'),
+    : 'Calibrate: load a background image first (drop an image onto the canvas, or the image button on the right)'),
   activate() {
     picked = [];
     if (!store.background?.url) toast('No background image loaded — drop an image onto the canvas first.', { type: 'warn' });

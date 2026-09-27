@@ -6,9 +6,10 @@ import { POI_STATUSES } from '../../core/schema.js';
 import { resolveStyle, poiStyle, STATUS_COLORS } from '../../core/styles.js';
 import { nextId, zoneOf } from '../../core/model.js';
 import { ICONS } from '../../core/render-svg.js';
-import { h, clear, icon } from '../dom.js';
+import { h, clear } from '../dom.js';
+import { icon } from '../ui/icons.js';
 
-export function mountPoiList(root, { canvas }) {
+export function mountPoiList(root, { canvas, onCount = () => {} }) {
   const f = store.prefs.poiFilter || (store.prefs.poiFilter = { status: '', type: '', zone: '' });
   let query = '';
 
@@ -16,14 +17,13 @@ export function mountPoiList(root, { canvas }) {
     type: 'search', class: 'search', placeholder: 'Search POIs…  (/)', name: 'poi-search', id: 'poi-search',
     oninput: (e) => { query = e.target.value.trim().toLowerCase(); renderList(); },
   });
-  const addBtn = h('button', { class: 'icon-btn accent', title: 'Add a new POI (unplaced) and edit it', onclick: addPoi }, icon('plus'));
+  const addBtn = h('button', { type: 'button', class: 'icon-btn accent', title: 'Add a new POI (unplaced) and edit it', 'aria-label': 'Add POI', onclick: addPoi }, icon('plus'));
   const selStatus = h('select', { name: 'f-status', title: 'Filter by status', onchange: (e) => { f.status = e.target.value; savePrefs(); renderList(); } });
   const selType = h('select', { name: 'f-type', title: 'Filter by type', onchange: (e) => { f.type = e.target.value; savePrefs(); renderList(); } });
   const selZone = h('select', { name: 'f-zone', title: 'Filter by zone', onchange: (e) => { f.zone = e.target.value; savePrefs(); renderList(); } });
   const list = h('div', { class: 'poi-list' });
   root.append(
-    h('div', { class: 'panel-head' }, h('h3', {}, 'Points of interest'), h('span', { class: 'count', id: 'poi-count' }), addBtn),
-    h('div', { class: 'poi-tools' }, search, h('div', { class: 'filters' }, selStatus, selType, selZone)),
+    h('div', { class: 'poi-tools' }, h('div', { class: 'poi-search-row' }, search, addBtn), h('div', { class: 'filters' }, selStatus, selType, selZone)),
     list,
   );
 
@@ -112,7 +112,7 @@ export function mountPoiList(root, { canvas }) {
     const unplaced = shown.filter((p) => p.placed === false);
     const placed = shown.filter((p) => p.placed !== false);
     clear(list);
-    document.getElementById('poi-count').textContent = shown.length === doc.pois.length ? String(doc.pois.length) : `${shown.length}/${doc.pois.length}`;
+    onCount(shown.length === doc.pois.length ? String(doc.pois.length) : `${shown.length}/${doc.pois.length}`);
     if (unplaced.length) {
       list.append(h('div', { class: 'section-title warn' }, `Unplaced (${unplaced.length}) — drag onto the map`));
       for (const p of unplaced) list.append(renderRow(p, rs, zones));
@@ -122,6 +122,7 @@ export function mountPoiList(root, { canvas }) {
       for (const p of placed) list.append(renderRow(p, rs, zones));
     }
     if (!shown.length) list.append(h('p', { class: 'muted empty' }, doc.pois.length ? 'No POI matches the filters.' : 'No POIs yet. Press O and click the map, or +.'));
+    else list.append(h('p', { class: 'panel-hint' }, 'Drag a row onto the map to place or move a POI.'));
   }
 
   let pending = false;

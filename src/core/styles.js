@@ -1,4 +1,4 @@
-// Style presets (blueprint, parchment) and style resolution.
+// Style presets (graphite, blueprint, parchment) and style resolution.
 // A document's `style` only stores the preset name plus overrides; the
 // effective style is resolveStyle(doc.style).
 
@@ -40,6 +40,48 @@ const POI_TYPES = {
 };
 
 export const PRESETS = {
+  graphite: {
+    // neutral dark palette that matches the editor chrome: near-black ocean,
+    // desaturated land and zones, teal / yellow accents for roads and POIs
+    ocean: '#16181b',
+    label: '#e8e8e8',
+    grid: '#2c3035',
+    halo: '#0e0f11',
+    boundsColor: '#4b5057',
+    poiBg: '#111315',
+    layers: {
+      land: { fill: '#2a2d2b', stroke: '#8d948f', width: 1.5 },
+      water: { fill: '#1a232d', stroke: '#4f8fd6', width: 1.5 },
+      coast: { stroke: '#9aa09c', width: 1.5 },
+      rivers: { stroke: '#4f8fd6', width: 3 },
+      roads: { stroke: '#f5c542', width: 2 },
+      rails: { stroke: '#a3a7ab', width: 2, dash: '8 4' },
+      walls: { stroke: '#d9dcdf', width: 4 },
+      zones: { opacity: 0.3 },
+    },
+    lineTypes: LINE_TYPES,
+    wallTypes: {
+      wall_stone: { stroke: '#d9dcdf', pattern: 'crenel' },
+      wall_palisade: { stroke: '#a88b6a', pattern: 'ticks' },
+    },
+    zoneTypes: {
+      mountains: { fill: '#7a736b', pattern: 'hatch' },
+      hills: { fill: '#847d67' },
+      plains: { fill: '#607356' },
+      forest: { fill: '#3e5b47' },
+      swamp: { fill: '#4b5b49', pattern: 'dots' },
+      desert: { fill: '#9d8b63' },
+    },
+    poiTypes: {
+      village: { color: '#f5c542', icon: 'house' },
+      city: { color: '#10a37f', icon: 'castle' },
+      mine: { color: '#c49a6c', icon: 'pick' },
+      ruin: { color: '#9b9ba7', icon: 'ruin' },
+      camp: { color: '#34d399', icon: 'tent' },
+      gate: { color: '#e5e5e5', icon: 'gate' },
+      poi: { color: '#5eead4', icon: 'dot' },
+    },
+  },
   blueprint: {
     ocean: '#0f1f33',
     label: '#e6eef7',

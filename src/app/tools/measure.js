@@ -18,10 +18,10 @@ export default {
   label: 'Measure',
   key: 'M',
   icon: 'measure',
-  hint: () => 'Click points to measure · double-click or Enter ends · Esc clears · Shift snaps',
+  hint: () => 'Click points to measure · double-click or Enter ends · Esc clears · Shift toggles snapping',
   deactivate() { pts = []; hover = null; done = false; },
   down(ctx) {
-    const p = ctx.shift ? ctx.canvas.snap(ctx.world) : ctx.world;
+    const p = ctx.snap ? ctx.canvas.snap(ctx.world) : ctx.world;
     if (done) { pts = []; done = false; }
     if (ctx.clicks >= 2 && pts.length >= 2) { done = true; }
     else pts.push(p);
@@ -29,7 +29,7 @@ export default {
     emit('hud');
   },
   move(ctx) {
-    hover = ctx.shift ? ctx.canvas.snap(ctx.world) : ctx.world;
+    hover = ctx.snap ? ctx.canvas.snap(ctx.world) : ctx.world;
     if (pts.length && !done) { ctx.canvas.invalidate('tool'); emit('hud'); }
   },
   onKey(e, canvas) {

@@ -21,7 +21,7 @@
     }
   },
   "style": {
-    "preset": "blueprint"
+    "preset": "graphite"
   },
   "layers": {
     "land": [

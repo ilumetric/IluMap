@@ -1,6 +1,6 @@
 // Style panel: preset + per-layer and per-type colours (stored as overrides in doc.style).
 
-import { store, on, change, savePrefs } from '../state.js';
+import { store, on, change } from '../state.js';
 import { resolveStyle, PRESETS, POI_ICONS } from '../../core/styles.js';
 import { DRAW_ORDER } from '../../core/schema.js';
 import { h, clear, renderKeepingFocus, openDialog, toast } from '../dom.js';
@@ -32,8 +32,6 @@ export function mountStyle(root) {
       const preset = h('select', { name: 'preset' }, Object.keys(PRESETS).map((p) => h('option', { value: p, selected: p === rs.preset }, p)));
       preset.addEventListener('change', () => {
         const v = preset.value;
-        store.prefs.lastPreset = v;
-        savePrefs();
         change((d) => {
           d.style.preset = v;
           // colours of the old preset would clash: drop ocean/label/grid and layer colour overrides, keep widths/opacity
@@ -47,10 +45,11 @@ export function mountStyle(root) {
       });
 
       body.append(h('section', { class: 'insp-section' },
-        h('h4', {}, 'Preset'),
+        h('h4', {}, 'Map style'),
+        h('p', { class: 'muted small' }, 'Colours of the map itself (saved in map.json). The editor theme is in Settings.'),
         h('div', { class: 'row2' },
           h('label', { class: 'field' }, h('span', {}, 'Base palette'), preset),
-          h('label', { class: 'field' }, h('span', {}, 'Ocean (canvas background)'), colorCell('ocean', rs.ocean, (v) => change((d) => { d.style.ocean = v; })))),
+          h('label', { class: 'field' }, h('span', {}, 'Ocean (inside the bounds)'), colorCell('ocean', rs.ocean, (v) => change((d) => { d.style.ocean = v; })))),
         h('div', { class: 'row2' },
           h('label', { class: 'field' }, h('span', {}, 'Labels'), colorCell('label', rs.label, (v) => change((d) => { d.style.label = v; }))),
           h('label', { class: 'field' }, h('span', {}, 'Grid'), colorCell('grid', rs.grid, (v) => change((d) => { d.style.grid = v; })))),

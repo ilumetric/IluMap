@@ -1,7 +1,8 @@
 // Shared implementation of the line / polygon / wall drawing tools.
 // Click adds a vertex, Enter / double-click / right-click finishes, C closes
 // (lines and walls), Backspace removes the last vertex, Esc cancels.
-// Shift snaps to the grid. Clicking the first vertex closes the shape.
+// Snapping to the grid follows the snap toggle (Shift inverts it). Clicking
+// the first vertex closes the shape.
 
 import { store, change, select, setActiveLayer, emit } from '../state.js';
 import { LAYER_KIND, LAYER_ID_PREFIX, DEFAULT_WALL } from '../../core/schema.js';
@@ -10,13 +11,7 @@ import { toView } from '../../core/render-svg.js';
 import { linearPath, catmullRomToPath, polylineLength, polygonArea } from '../../core/geometry.js';
 import { formatLength, formatArea } from '../../core/text-export.js';
 import { toast } from '../dom.js';
-
-const DEFAULT_TYPES = { rivers: 'river_minor', roads: 'road_dirt', rails: 'rail', walls: 'wall_stone' };
-
-export function defaultTypeFor(layer) {
-  if (layer === 'zones') return store.prefs.lastZoneType || 'plains';
-  return DEFAULT_TYPES[layer];
-}
+import { newTypeFor } from '../ui/layer-meta.js';
 
 /** Pick the layer a tool draws into, switching the active layer when needed. */
 export function targetLayer(kind, wall) {
@@ -41,7 +36,7 @@ export function createDrawTool({ id, label, key, icon, kind, wall = false }) {
     }
     const l = layer();
     const f = { id: nextId(store.doc, LAYER_ID_PREFIX[l]), kind: LAYER_KIND[l] };
-    const type = defaultTypeFor(l);
+    const type = newTypeFor(l);
     if (type) f.type = type;
     f.points = pts.map((p) => p.slice());
     if (kind === 'line' && close && pts.length >= 3) f.closed = true;
@@ -64,7 +59,7 @@ export function createDrawTool({ id, label, key, icon, kind, wall = false }) {
     hint() {
       const l = layer();
       const base = `Drawing into “${l}”. Click to add points · Enter or double-click to finish`;
-      return `${base}${kind === 'line' ? ' · C to close' : ''} · Backspace removes the last point · Shift snaps · Esc cancels`;
+      return `${base}${kind === 'line' ? ' · C to close' : ''} · Backspace removes the last point · Shift toggles snapping · Esc cancels`;
     },
     activate() {
       const l = layer();
@@ -73,7 +68,7 @@ export function createDrawTool({ id, label, key, icon, kind, wall = false }) {
     deactivate() { pts = []; hover = null; },
 
     down(ctx) {
-      const p = ctx.shift ? ctx.canvas.snap(ctx.world) : ctx.world.map(Math.round);
+      const p = ctx.snap ? ctx.canvas.snap(ctx.world) : ctx.world.map(Math.round);
       if (ctx.clicks >= 2 && pts.length) { finish(ctx.canvas); return; }
       // clicking the first point closes the shape
       if (pts.length >= minPts) {
@@ -89,7 +84,7 @@ export function createDrawTool({ id, label, key, icon, kind, wall = false }) {
       emit('hud');
     },
     move(ctx) {
-      hover = ctx.shift ? ctx.canvas.snap(ctx.world) : ctx.world;
+      hover = ctx.snap ? ctx.canvas.snap(ctx.world) : ctx.world;
       if (pts.length) { ctx.canvas.invalidate('tool'); emit('hud'); }
     },
     contextmenu(ctx) { if (pts.length) finish(ctx.canvas); },

@@ -67,13 +67,14 @@ src/
     png.js              minimal PNG encoder (zlib in Node, deflate via pako-free
                         stored/zlib in browser or <canvas> fallback)
     text-export.js      map.json -> markdown/plain text summary for agents
-    styles.js           style presets (blueprint, parchment) and defaults
+    styles.js           style presets (graphite, blueprint, parchment) and defaults
 tools/
   ilumap.mjs            CLI: validate | text | svg | mask | fmt | list
 schema/map.schema.json  JSON Schema (draft 2020-12) of the map format
 examples/demo/map.json  reference map (40 km archipelago, 7 POIs incl. village,
                         mine_old, city_riverport and one unplaced POI)
-docs/                   this file, FORMAT.md, AGENT.md (how an agent uses it)
+docs/                   this file, FORMAT.md, AGENT.md (how an agent uses it),
+                        DESIGN.md (UI tokens, components, layout)
 test/                   node --test unit tests for src/core
 ```
 
@@ -206,42 +207,97 @@ formatLength(worldUnits, meta) -> "1.2 km", formatArea(worldUnits², meta) -> "3
 
 ## UI architecture (`src/app`)
 
+The editor is a full-bleed SVG canvas with floating chrome on top of it and a
+collapsible project sidebar on the left (see `docs/DESIGN.md` for the look,
+tokens and component anatomy). The chrome's theme (System / Dark / Light,
+`data-ui-theme` on `<html>`) is independent of the map's style preset, which
+only colours map content.
+
 * `state.js` — single in-memory document + selection + tool state, undo/redo
-  as snapshots of the serialized doc (cheap at this size), dirty flag,
-  localStorage draft autosave (safety net only, never the source of truth).
-* `canvas.js` — SVG viewport: pan/zoom (world→screen transform), ocean
-  background, calibrated background image, grid, scale bar, layer groups,
-  selection handles, vertex handles. Uses `render-svg.js` for the layer
-  content so exports match the screen.
+  as snapshots of the serialized doc (cheap at this size), dirty flag (= the
+  document differs from the file it was last read from / saved to), UI prefs
+  in localStorage (panels, layer visibility/lock, snapping, …). Tiny event
+  bus (`on` / `emit`): `doc`, `selection`, `layers`, `tool`, `view`, `dirty`,
+  `file`, `load`, `project`, `projects`, `panels`, `prefs`, `theme`, …
+* `projects.js` — IndexedDB storage of local projects (below).
+* `session.js` — the workspace: which project is open, autosave, new / open /
+  import / switch / rename / duplicate / delete, background blobs, first
+  launch, migration of the pre-projects localStorage draft.
+* `canvas.js` — SVG viewport: pan/zoom (world→screen transform), the ocean
+  rectangle inside the bounds (outside it the stage's CSS dot grid shows and
+  follows pan/zoom), calibrated background image, grid clipped to the
+  bounds, scale bar, layer groups, selection and vertex handles. Uses
+  `render-svg.js` for the layer content so exports match the screen.
 * `tools/` — one module per tool: select/move, pan, draw-line, draw-polygon,
   draw-wall, place-poi, measure, calibrate. Tools receive pointer events in
-  world coords.
-* `panels/` — layers panel (visibility, lock, colour, opacity; visibility and
-  lock are per-user UI prefs in localStorage, not part of map.json), POI list
-  (search, filter by status/zone/type, "Unplaced" section, drag-to-map),
-  properties inspector (id, name, type, tags, status, notes, colour, points,
-  wall towers/gates), links editor, style panel (preset + per-type colours),
-  map settings (meta, bounds, grid, background image).
-* `io.js` — open/save via File System Access API, fallback to `<input type=file>`
-  and download; export SVG / PNG / masks / text; drag-and-drop a `map.json`
-  or a background image onto the canvas.
+  world coords (`ctx.snap` = snap toggle XOR Shift).
+* `panels/` — contents of the floating panels: layers (visibility, lock,
+  colour, opacity; visibility and lock are per-user UI prefs, not part of
+  map.json), POI list (search, filters, "Unplaced" section, drag-to-map),
+  inspector (id, name, type, tags, status, notes, colour, points, wall
+  towers/gates, links; shows the map settings — meta, bounds, grid,
+  background — when nothing is selected), style (preset + per-type colours).
+* `ui/` — the chrome: `icons.js` (every UI icon, inline SVG), `sidebar.js`,
+  `toolbar.js` (left tool stack, right view tools, background popover),
+  `dock.js` (bottom layer dock), `minimap.js`, `chrome.js` (title, panel
+  toggles + Export menu, undo/redo, zoom pill, cursor read-out, tool HUD),
+  `floating-panel.js` (dockable, draggable panel cards), `menu.js` (menus and
+  popovers), `layer-meta.js` (layer labels, colours, types for new features).
+* `settings.js` — UI theme and the Settings dialog; `io.js` — save via the
+  File System Access API (download fallback), exports (JSON / SVG / PNG /
+  masks / text), background image loading, POI placement.
+
+### Local projects (IndexedDB)
+
+The sidebar lists **local projects**: browser working copies of maps, stored
+in IndexedDB database `ilumap` with two object stores:
+
+| store | key | value |
+|---|---|---|
+| `projects` | `id` | `{ id, name, createdAt, updatedAt, doc, savedText?, fileName?, baseUrl?, fileHandle?, backgroundBlobKey? }` |
+| `blobs` | `bg:<projectId>` | the background image `Blob` |
+
+* `doc` is the canonical map.json text of the working copy; `savedText` the
+  text last read from / written to disk (so the unsaved-changes dot survives
+  reloads); `fileHandle` a `FileSystemFileHandle` (structured-cloneable in
+  Chromium) so Save writes back to the same file after a reload
+  (`requestPermission` is asked again on Save); `baseUrl` resolves a relative
+  `view.background.src` for maps loaded over HTTP.
+* The open map autosaves into its project on every committed change
+  (debounced 500 ms, flushed on tab hide / before switching); autosave can be
+  turned off in Settings. It replaced the old `localStorage` draft, which is
+  migrated into a project once and then removed.
+* New map / Open file / dropping a `map.json` create a project; opening a
+  file whose handle is already a project focuses that project (and offers to
+  reload it when the file changed on disk). Dropped or loaded background
+  images are stored as blobs, so they survive reloads (they are still saved
+  as a relative `src` in map.json).
+* First launch with no projects: a copy of `examples/demo/map.json`.
+* Without IndexedDB (private mode, disabled storage) `projects.js` falls back
+  to an in-memory store and the app says so in a toast.
+
+**Browser projects are a working copy; commit `map.json`.** The file in the
+repo stays the single source of truth — Save (`Ctrl+S`) writes it (or
+downloads it), and git tracks it.
 
 Interaction conventions: `V` select, `H` pan / hold `Space` / middle mouse,
 `L` line, `P` polygon, `W` wall, `O` POI, `M` measure, `K` calibrate,
 `Enter` (or double-click / right-click) finish, `C` close path while drawing,
 `Backspace` remove the last point while drawing, `Esc` cancel, `Delete`
 remove, `Ctrl+Z/Y` undo/redo, `Ctrl+S` save, `Ctrl+Shift+S` save as, `Ctrl+O`
-open, double-click vertex to delete, `Alt`+click on segment to insert a
-vertex, wheel to zoom, `F` fit, `G` grid, `/` search POIs, `?` help, arrows
-nudge the selection, `Shift`+drag on POI to snap to grid (Shift also snaps
-while drawing). A feature must be selected before a drag moves it (so a
+open a file as a local map, `Ctrl+B` sidebar, `Ctrl+K` search maps,
+double-click vertex to delete, `Alt`+click on segment to insert a vertex,
+wheel to zoom, `F` fit, `G` grid, `/` search POIs, `?` help, `[` / `]`
+panels, `F2` rename, arrows nudge the selection. Grid snapping follows the
+magnet toggle (bottom right); holding `Shift` inverts it while drawing or
+dragging. A feature must be selected before a drag moves it (so a
 click on a big island never moves it by accident); POIs move immediately.
 
 ## Exports
 
 | Export | Browser | CLI (`tools/ilumap.mjs`) | Notes |
 |---|---|---|---|
-| `map.json` | Save / Save as | `fmt` (canonical reformat) | source of truth |
+| `map.json` | Save / Save as (top-left pill, Export menu) | `fmt` (canonical reformat) | source of truth |
 | SVG | Export → SVG | `svg` | same renderer, world-unit viewBox, layers as `<g id="layer-…">` |
 | PNG | Export → PNG (canvas raster of the SVG) | — | width configurable |
 | Text | Copy as text | `text` | markdown or plain, for agents |

@@ -1,99 +1,57 @@
 <!doctype html>
-<html lang="en" data-theme="blueprint">
+<html lang="en" data-ui-theme="dark">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
   <title>IluMap</title>
   <meta name="description" content="IluMap — open-source vector map editor for game worlds. map.json is the source of truth.">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230f1f33'/%3E%3Cpath d='M6 22c3-9 7-12 11-9s5 1 9-5' fill='none' stroke='%234cc9f0' stroke-width='2.5' stroke-linecap='round'/%3E%3Ccircle cx='21' cy='20' r='3.2' fill='%23ffd166'/%3E%3C/svg%3E">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23171717'/%3E%3Cpath d='M6 22c3-9 7-12 11-9s5 1 9-5' fill='none' stroke='%2310a37f' stroke-width='2.5' stroke-linecap='round'/%3E%3Ccircle cx='21' cy='20' r='3.2' fill='%23f5c542'/%3E%3C/svg%3E">
+  <script>
+    // apply the UI theme before first paint (see src/app/settings.js)
+    (function () {
+      var t = 'system';
+      try { t = localStorage.getItem('ilumap.uiTheme') || 'system'; } catch (e) { /* storage disabled */ }
+      if (t === 'system') t = window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-ui-theme', t === 'light' ? 'light' : 'dark');
+    })();
+  </script>
   <link rel="stylesheet" href="src/app/styles.css">
 </head>
 <body>
   <div id="app">
-    <header id="topbar">
-      <div class="brand" title="IluMap — vector map editor for game worlds">
-        <svg viewBox="0 0 32 32" width="22" height="22" aria-hidden="true"><rect width="32" height="32" rx="7" fill="var(--accent-bg)"/><path d="M6 22c3-9 7-12 11-9s5 1 9-5" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round"/><circle cx="21" cy="20" r="3.2" fill="var(--warn)"/></svg>
-        <span>IluMap</span>
-      </div>
-      <nav class="menus">
-        <div class="menu">
-          <button class="menu-btn" type="button">File</button>
-          <div class="menu-pop" role="menu">
-            <button data-cmd="new" role="menuitem">New map…</button>
-            <button data-cmd="open" role="menuitem">Open… <kbd>Ctrl+O</kbd></button>
-            <button data-cmd="open-demo" role="menuitem">Open demo map</button>
-            <hr>
-            <button data-cmd="save" role="menuitem">Save <kbd>Ctrl+S</kbd></button>
-            <button data-cmd="save-as" role="menuitem">Save as… <kbd>Ctrl+Shift+S</kbd></button>
-            <hr>
-            <button data-cmd="bg" role="menuitem">Load background image…</button>
-          </div>
-        </div>
-        <div class="menu">
-          <button class="menu-btn" type="button">Export</button>
-          <div class="menu-pop" role="menu">
-            <button data-cmd="export-json" role="menuitem">JSON (map.json)</button>
-            <button data-cmd="export-svg" role="menuitem">SVG</button>
-            <button data-cmd="export-png" role="menuitem">PNG…</button>
-            <button data-cmd="export-masks" role="menuitem">Masks (Gaea / WM / UE)…</button>
-            <hr>
-            <button data-cmd="copy-md" role="menuitem">Copy as text (markdown)</button>
-            <button data-cmd="copy-plain" role="menuitem">Copy as plain text</button>
-          </div>
-        </div>
-      </nav>
-      <div class="sep"></div>
-      <button class="icon-btn" data-cmd="undo" id="btn-undo" title="Undo (Ctrl+Z)"></button>
-      <button class="icon-btn" data-cmd="redo" id="btn-redo" title="Redo (Ctrl+Y / Ctrl+Shift+Z)"></button>
-      <div class="sep"></div>
-      <input id="map-name" name="mapName" class="map-name" autocomplete="off" spellcheck="false" title="Map name (meta.name)">
-      <span id="dirty" class="dirty" title="Unsaved changes">●</span>
-      <span id="file-name" class="file-name muted"></span>
-      <div class="grow"></div>
-      <div class="zoom">
-        <button class="icon-btn" data-cmd="zoom-out" title="Zoom out (-)">−</button>
-        <button class="zoom-pct" id="zoom-pct" data-cmd="fit" title="Zoom (100% = fit bounds). Click to fit (F)">100%</button>
-        <button class="icon-btn" data-cmd="zoom-in" title="Zoom in (+)">+</button>
-      </div>
-      <div class="sep"></div>
-      <button class="icon-btn" data-cmd="toggle-left" id="btn-left" title="Toggle layers panel ([)"></button>
-      <button class="icon-btn" data-cmd="toggle-right" id="btn-right" title="Toggle right panel (])"></button>
-      <button class="icon-btn" data-cmd="help" id="btn-help" title="Keyboard shortcuts (?)"></button>
-    </header>
-
-    <nav id="toolbar" aria-label="Tools"></nav>
-
-    <aside id="left" class="panel" aria-label="Layers">
-      <div id="layers-panel"></div>
-    </aside>
+    <aside id="sidebar" aria-label="Maps"></aside>
 
     <main id="stage">
       <svg id="canvas" tabindex="0" xmlns="http://www.w3.org/2000/svg" aria-label="Map canvas"></svg>
-      <div id="hud" class="hud" hidden></div>
-      <div id="scalebar"><div class="bar"></div><div class="lbl"></div></div>
-      <div id="drop-hint">Drop a <b>map.json</b> to open it, or an <b>image</b> to use as background</div>
-    </main>
 
-    <aside id="right" class="panel" aria-label="POIs and inspector">
-      <div id="poi-panel"></div>
-      <div class="tabs" role="tablist">
-        <button data-tab="inspector" role="tab">Inspector</button>
-        <button data-tab="map" role="tab">Map</button>
-        <button data-tab="style" role="tab">Style</button>
+      <!-- floating chrome (everything with .chrome sits on top of the canvas) -->
+      <button id="sidebar-open" class="chrome fab" type="button" title="Open sidebar (Ctrl+B)" aria-label="Open sidebar" hidden></button>
+      <div id="title-pill" class="chrome pill"></div>
+      <div id="panel-toggles" class="chrome pill" role="toolbar" aria-label="Panels"></div>
+      <div id="history-pill" class="chrome pill" role="toolbar" aria-label="History"></div>
+
+      <nav id="toolbar" class="chrome tb-stack" aria-label="Tools"></nav>
+      <div id="view-tools" class="chrome tb-stack" role="toolbar" aria-label="View"></div>
+
+      <div id="dock-left" class="dock-col"></div>
+      <div id="dock-right" class="dock-col"></div>
+      <div id="float-layer"></div>
+
+      <div id="hud" class="chrome hud" hidden></div>
+      <div id="dock" class="chrome pill" role="toolbar" aria-label="Layer dock"></div>
+
+      <div id="nav-corner" class="chrome">
+        <div id="scalebar"><div class="bar"></div><div class="lbl"></div></div>
+        <div id="minimap" class="card" title="Minimap — click or drag to navigate"></div>
       </div>
-      <div class="tab-body" id="tab-inspector"></div>
-      <div class="tab-body" id="tab-map"></div>
-      <div class="tab-body" id="tab-style"></div>
-    </aside>
+      <div id="coords" class="chrome mono" aria-live="off"></div>
+      <div id="zoom-pill" class="chrome pill" role="toolbar" aria-label="View options and zoom"></div>
 
-    <footer id="status">
-      <span id="st-coords" class="mono">—</span>
-      <span id="st-where"></span>
-      <span class="grow"></span>
-      <span id="st-layer"></span>
-      <span id="st-sel"></span>
-    </footer>
+      <div id="drop-hint">Drop a <b>map.json</b> to open it as a local map, or an <b>image</b> to use as background</div>
+    </main>
   </div>
+  <div id="menus"></div>
   <div id="dialogs"></div>
   <div id="toasts" aria-live="polite"></div>
   <noscript>IluMap needs JavaScript (ES modules). Serve this folder over HTTP, e.g. <code>python -m http.server</code>.</noscript>

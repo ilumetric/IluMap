@@ -4,15 +4,13 @@ import { store, on, emit, change, select, setActiveLayer, layerPrefs, savePrefs,
 import { LAYER_KIND, DRAW_ORDER } from '../../core/schema.js';
 import { resolveStyle } from '../../core/styles.js';
 import { centroid } from '../../core/geometry.js';
-import { h, clear, icon, renderKeepingFocus } from '../dom.js';
-
-const LABELS = {
-  land: 'Land', water: 'Water', coast: 'Coast', rivers: 'Rivers', roads: 'Roads', rails: 'Rails', walls: 'Walls', zones: 'Zones', pois: 'POIs', labels: 'Labels',
-};
+import { h, clear, renderKeepingFocus } from '../dom.js';
+import { icon } from '../ui/icons.js';
+import { LABELS } from '../ui/layer-meta.js';
 
 export function mountLayers(root, { canvas }) {
   const body = h('div', { class: 'layer-list' });
-  root.append(h('div', { class: 'panel-head' }, h('h3', {}, 'Layers'), h('span', { class: 'muted small' }, 'active = drawing target')), body);
+  root.append(h('p', { class: 'panel-hint' }, 'Click a layer to draw into it · eye hides · lock protects'), body);
 
   const swatchKey = (l) => (l === 'land' || l === 'water' ? 'fill' : 'stroke');
 
@@ -25,11 +23,11 @@ export function mountLayers(root, { canvas }) {
     const st = rs.layers[layer] || {};
 
     const eye = h('button', {
-      class: `icon-btn${prefs.visible ? '' : ' off'}`, title: prefs.visible ? 'Hide layer' : 'Show layer',
+      class: `icon-btn${prefs.visible ? '' : ' off'}`, title: prefs.visible ? 'Hide layer' : 'Show layer', 'aria-pressed': String(!prefs.visible),
       onclick: (e) => { e.stopPropagation(); prefs.visible = !prefs.visible; savePrefs(); emit('layers'); render(); },
     }, icon(prefs.visible ? 'eye' : 'eyeOff'));
     const lock = h('button', {
-      class: `icon-btn${prefs.locked ? ' on' : ' dim'}`, title: prefs.locked ? 'Unlock layer' : 'Lock layer (no selection or editing)',
+      class: `icon-btn${prefs.locked ? ' on' : ' dim'}`, title: prefs.locked ? 'Unlock layer' : 'Lock layer (no selection or editing)', 'aria-pressed': String(!!prefs.locked),
       onclick: (e) => { e.stopPropagation(); prefs.locked = !prefs.locked; savePrefs(); emit('layers'); render(); },
     }, icon(prefs.locked ? 'lock' : 'unlock'));
 
@@ -45,7 +43,7 @@ export function mountLayers(root, { canvas }) {
         }),
       });
     } else if (layer === 'zones') {
-      swatch = h('span', { class: 'swatch swatch-multi', title: 'Zone colours are per type (Style tab)' });
+      swatch = h('span', { class: 'swatch swatch-multi', title: 'Zone colours are per type (Style panel)' });
     }
 
     const head = h('div', {

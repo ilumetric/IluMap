@@ -50,7 +50,7 @@ add their own fields under an `x_` prefix (e.g. `x_questGiver`).
 
 ```jsonc
 "style": {
-  "preset": "blueprint",            // "blueprint" | "parchment" — base palette
+  "preset": "blueprint",            // "graphite" | "blueprint" | "parchment" — base palette
   "ocean": "#0f1f33",               // canvas background colour (ocean)
   "label": "#e6eef7",               // optional: label colour
   "grid": "#27456b",                // optional: grid colour
@@ -99,7 +99,8 @@ Style widths are in **screen pixels at zoom 1**, while a Feature's own
 A file only needs `"style": { "preset": "blueprint" }`: every other entry is an
 override merged over the preset (see `resolveStyle()` in `src/core/styles.js`),
 so the example above is what the effective style looks like, not what must be
-written. Keys inside a style entry are ordered `fill, stroke, color, width,
+written. A missing or unknown preset falls back to `blueprint`; the editor
+creates new maps with `graphite` (changeable in Settings). Keys inside a style entry are ordered `fill, stroke, color, width,
 dash, opacity, pattern, icon`. Zone `pattern` is `hatch` or `dots`; wall
 `pattern` is `crenel` or `ticks`; POI `icon` is one of `house, castle, pick,
 ruin, tent, gate, dot`. Switching the preset in the editor drops colour

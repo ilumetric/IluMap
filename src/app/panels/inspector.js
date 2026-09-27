@@ -6,7 +6,8 @@ import { resolveStyle, typeGroupForLayer, poiStyle } from '../../core/styles.js'
 import { findById, renameId, removeById, zoneOf, isLand, allIds, slugify } from '../../core/model.js';
 import { polylineLength, polygonArea, centroid, featureGeometry, wallLayout } from '../../core/geometry.js';
 import { formatLength, formatArea } from '../../core/text-export.js';
-import { h, clear, icon, toast, renderKeepingFocus } from '../dom.js';
+import { h, clear, toast, renderKeepingFocus } from '../dom.js';
+import { icon } from '../ui/icons.js';
 import { renderLinks } from './links.js';
 
 const fmtN = (v) => (v == null ? '' : String(Math.round(v * 100) / 100));
@@ -94,9 +95,10 @@ function section(title, ...children) {
   return h('section', { class: 'insp-section' }, h('h4', {}, title), ...children);
 }
 
-export function mountInspector(root, { canvas }) {
+export function mountInspector(root, { canvas, mapSettings }) {
   const body = h('div', { class: 'inspector' });
   root.append(body);
+  if (mapSettings) root.append(mapSettings);
 
   function centerOn(hit) {
     if (hit.kind === 'poi') { if (hit.item.placed !== false) canvas.centerOn([hit.item.x, hit.item.y]); return; }
@@ -107,7 +109,7 @@ export function mountInspector(root, { canvas }) {
 
   function actions(hit) {
     return h('div', { class: 'insp-actions' },
-      h('button', { class: 'btn btn-small', onclick: () => centerOn(hit) }, icon('target'), 'Center'),
+      h('button', { type: 'button', class: 'btn btn-small', onclick: () => centerOn(hit) }, icon('target'), 'Center'),
       h('button', { class: 'btn btn-small btn-danger', onclick: () => change((doc) => removeById(doc, hit.item.id)) }, icon('trash'), 'Delete'));
   }
 
@@ -115,15 +117,9 @@ export function mountInspector(root, { canvas }) {
     const doc = store.doc;
     const nf = LAYERS.reduce((n, l) => n + doc.layers[l].length, 0);
     body.append(
+      h('div', { class: 'insp-head' }, h('span', { class: 'insp-kind' }, 'Map'), h('span', { class: 'insp-title' }, doc.meta.name || 'Untitled')),
       h('div', { class: 'insp-empty' },
-        h('p', {}, h('strong', {}, doc.meta.name || 'Untitled')),
-        h('p', { class: 'muted' }, `${doc.pois.length} POIs · ${nf} features · ${doc.links.length} links`),
-        h('p', { class: 'muted small' }, 'Nothing selected. Click a feature or POI on the map, or a row in the POI list. Shift+click adds to the selection; drag on empty space for a box selection.'),
-        h('ul', { class: 'tips' },
-          h('li', {}, h('kbd', {}, 'L'), ' line · ', h('kbd', {}, 'P'), ' polygon · ', h('kbd', {}, 'W'), ' wall · ', h('kbd', {}, 'O'), ' POI'),
-          h('li', {}, h('kbd', {}, 'Enter'), ' finish · ', h('kbd', {}, 'C'), ' close · ', h('kbd', {}, 'Esc'), ' cancel'),
-          h('li', {}, h('kbd', {}, 'Alt'), '+click segment inserts a vertex; double-click a vertex deletes it'),
-          h('li', {}, h('kbd', {}, '?'), ' all shortcuts'))));
+        h('p', { class: 'muted small' }, `${doc.pois.length} POIs · ${nf} features · ${doc.links.length} links. Nothing selected — click a feature or POI (Shift adds, drag on empty space box-selects). The map's own settings are below.`)));
   }
 
   function renderMulti(items) {
@@ -312,6 +308,8 @@ export function mountInspector(root, { canvas }) {
       else if (items[0].hit.kind === 'poi') renderPoi(items[0].hit);
       else if (items[0].hit.kind === 'feature') renderFeature(items[0].hit);
       else renderNone();
+      if (mapSettings) mapSettings.hidden = items.length > 0;
+      emit('inspector-mode', items.length ? 'selection' : 'map');
     });
   }
 
@@ -324,7 +322,7 @@ export function mountInspector(root, { canvas }) {
   on('selection', schedule);
   on('doc', (d) => { if (!d?.live) schedule(); });
   on('focus-field', (name) => {
-    emit('show-tab', 'inspector');
+    emit('open-panel', 'inspector');
     requestAnimationFrame(() => requestAnimationFrame(() => {
       const el = body.querySelector(`[name="${name}"]`);
       if (el) { el.focus(); el.select?.(); }

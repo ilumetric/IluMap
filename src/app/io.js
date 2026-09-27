@@ -1,24 +1,20 @@
-// Open / save (File System Access API with fallbacks), exports, drag & drop.
+// Save (File System Access API with fallbacks), exports, background image,
+// POI placement. Opening / importing maps lives in session.js.
 
-import { store, setDoc, markSaved, change, emit, visibleLayers } from './state.js';
+import { store, markSaved, change, emit, visibleLayers } from './state.js';
 import { normalize, serialize, validate, findById, zoneOf } from '../core/model.js';
 import { renderSvg } from '../core/render-svg.js';
 import { toText } from '../core/text-export.js';
 import { renderMask, maskFileName, maskSidecar, stringifySidecar, maskSources, zoneTypes } from '../core/render-mask.js';
 import { encodePngAsync } from '../core/png.js';
 import { fitPairs } from '../core/calibration.js';
-import { download, toast, openDialog, confirmDialog, h } from './dom.js';
+import { download, toast, openDialog, h } from './dom.js';
 
 const JSON_TYPES = [{ description: 'IluMap map', accept: { 'application/json': ['.json'] } }];
-const hasFS = typeof window !== 'undefined' && 'showOpenFilePicker' in window;
+export const JSON_PICKER_TYPES = JSON_TYPES;
 
 function baseName(name) {
   return (name || 'map.json').replace(/\.json$/i, '');
-}
-
-async function confirmDiscard() {
-  if (!store.dirty) return true;
-  return confirmDialog('You have unsaved changes. Discard them?', { title: 'Unsaved changes', okText: 'Discard', danger: true });
 }
 
 /** Parse + normalise + report validation problems. Returns the doc or null. */
@@ -41,47 +37,11 @@ export function parseMapText(text, source = 'file') {
   return doc;
 }
 
-export async function loadText(text, { name, handle = null, baseUrl = null } = {}) {
-  const doc = parseMapText(text, name || 'map.json');
-  if (!doc) return false;
-  const canonical = serialize(doc) === text.replace(/\r\n/g, '\n');
-  setDoc(doc, { name, handle, baseUrl, saved: true });
-  if (!canonical) toast('File loaded. It will be saved in canonical format (key order, one [x, y] per line).', { timeout: 4500 });
-  resolveBackground();
-  return true;
-}
-
-export async function loadUrl(url, { quiet = false } = {}) {
+/** Fetch a map.json over HTTP; returns its text. */
+export async function fetchMapText(url) {
   const res = await fetch(url, { cache: 'no-cache' });
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-  const text = await res.text();
-  const abs = new URL(url, location.href).href;
-  const ok = await loadText(text, { name: abs.split('/').pop() || 'map.json', baseUrl: abs });
-  if (ok && !quiet) toast(`Loaded ${url}`);
-  return ok;
-}
-
-export async function openFile() {
-  if (!(await confirmDiscard())) return;
-  if (hasFS) {
-    try {
-      const [handle] = await window.showOpenFilePicker({ types: JSON_TYPES, multiple: false });
-      const file = await handle.getFile();
-      await loadText(await file.text(), { name: file.name, handle });
-      toast(`Opened ${file.name} — Ctrl+S saves back to it.`);
-    } catch (e) {
-      if (e.name !== 'AbortError') toast(`Open failed: ${e.message}`, { type: 'error' });
-    }
-    return;
-  }
-  const input = h('input', { type: 'file', accept: '.json,application/json', style: { display: 'none' } });
-  input.addEventListener('change', async () => {
-    const file = input.files[0];
-    input.remove();
-    if (file) await loadText(await file.text(), { name: file.name });
-  });
-  document.body.append(input);
-  input.click();
+  return res.text();
 }
 
 export async function save() {
@@ -96,6 +56,7 @@ export async function save() {
       await w.write(text);
       await w.close();
       markSaved(text);
+      emit('file');
       toast(`Saved ${store.file.name}`, { type: 'ok', timeout: 1800 });
       return true;
     } catch (e) {
@@ -116,7 +77,7 @@ export async function saveAs() {
       const w = await handle.createWritable();
       await w.write(text);
       await w.close();
-      store.file = { ...store.file, handle, name: handle.name };
+      store.file = { ...store.file, handle, name: handle.name, baseUrl: null };
       markSaved(text);
       emit('file');
       toast(`Saved ${handle.name}`, { type: 'ok', timeout: 1800 });
@@ -128,13 +89,9 @@ export async function saveAs() {
   }
   download(store.file.name || 'map.json', text, 'application/json');
   markSaved(text);
+  emit('file');
   toast('Downloaded map.json — replace the file in your repo with it.', { timeout: 5000 });
   return true;
-}
-
-export async function newMap(createFn) {
-  if (!(await confirmDiscard())) return;
-  createFn();
 }
 
 // --- exports ------------------------------------------------------------------
@@ -289,17 +246,22 @@ function imageSize(url) {
   });
 }
 
-/** Try to load view.background.src relative to the map URL. */
-export async function resolveBackground() {
+/**
+ * Load the background image: from the project's stored blob when there is
+ * one, otherwise view.background.src relative to the map URL.
+ */
+export async function resolveBackground({ blob = null, quiet = false } = {}) {
   const bg = store.doc.view.background;
+  if (store.background?.url?.startsWith('blob:')) URL.revokeObjectURL(store.background.url);
   if (!bg?.src) { store.background = null; emit('background'); return; }
   let url = null;
-  if (/^(data:|blob:|https?:)/.test(bg.src)) url = bg.src;
+  if (blob) url = URL.createObjectURL(blob);
+  else if (/^(data:|blob:|https?:)/.test(bg.src)) url = bg.src;
   else if (store.file.baseUrl) url = new URL(bg.src, store.file.baseUrl).href;
   if (!url) {
     store.background = { url: null, missing: true, name: bg.src };
     emit('background');
-    toast(`Background “${bg.src}” is not loaded — drop the image onto the canvas to attach it.`, { timeout: 7000 });
+    if (!quiet) toast(`Background “${bg.src}” is not loaded — drop the image onto the canvas to attach it.`, { timeout: 7000 });
     return;
   }
   try {
@@ -310,7 +272,7 @@ export async function resolveBackground() {
     }
   } catch {
     store.background = { url: null, missing: true, name: bg.src };
-    toast(`Background “${bg.src}” could not be loaded.`, { type: 'warn' });
+    if (!quiet) toast(`Background “${bg.src}” could not be loaded.`, { type: 'warn' });
   }
   emit('background');
 }
@@ -321,7 +283,9 @@ export async function attachBackgroundFile(file) {
   try { size = await imageSize(url); } catch (e) { toast(`Cannot read image: ${e.message}`, { type: 'error' }); return; }
   const bg = store.doc.view.background;
   const sameName = bg?.src && bg.src.split('/').pop() === file.name && bg.calibration?.length === 2;
+  if (store.background?.url?.startsWith('blob:')) URL.revokeObjectURL(store.background.url);
   store.background = { url, ...size, name: file.name };
+  emit('background-file', file); // session.js keeps it in the project so it survives reloads
   if (sameName) {
     emit('background');
     toast(`Attached ${file.name} using its saved calibration.`, { type: 'ok' });
@@ -350,18 +314,6 @@ export async function pickBackgroundImage() {
   });
   document.body.append(input);
   input.click();
-}
-
-export async function handleFiles(files) {
-  const json = files.find((f) => /\.json$/i.test(f.name) || f.type === 'application/json');
-  const img = files.find((f) => f.type.startsWith('image/'));
-  if (json) {
-    if (!(await confirmDiscard())) return;
-    await loadText(await json.text(), { name: json.name });
-    toast(`Opened ${json.name} (dropped files cannot be saved in place — use Save as…).`, { timeout: 5000 });
-  }
-  if (img) await attachBackgroundFile(img);
-  if (!json && !img) toast('Drop a map.json or an image (PNG/JPG).', { type: 'warn' });
 }
 
 /** Place a POI at a world position (drag from the list). */

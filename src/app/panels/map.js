@@ -1,4 +1,5 @@
 // Map settings: meta (name, units, flipY, land mode), bounds, grid, background image.
+// Shown in the Inspector panel while nothing is selected.
 
 import { store, on, change, emit } from '../state.js';
 import { LAND_MODES } from '../../core/schema.js';
@@ -70,6 +71,7 @@ export function mountMapSettings(root, { canvas }) {
       );
 
       const bgSec = h('section', { class: 'insp-section' }, h('h4', {}, 'Background image'));
+      const kept = store.project?.backgroundBlobKey ? ' The image itself is kept with this map in the browser.' : '';
       if (bg) {
         const op = h('input', { type: 'range', name: 'bgOpacity', min: 0, max: 1, step: 0.05, value: bg.opacity ?? 0.6 });
         op.addEventListener('input', () => { store.doc.view.background.opacity = Number(op.value); emit('background'); });
@@ -81,7 +83,7 @@ export function mountMapSettings(root, { canvas }) {
         });
         const st = store.background;
         bgSec.append(
-          field('Source (relative to map.json)', input('bgSrc', bg.src, (v) => { change((d) => { d.view.background.src = v; }); }), st?.url ? `${st.width}×${st.height}px loaded` : 'not loaded — drop the image onto the canvas'),
+          field('Source (relative to map.json)', input('bgSrc', bg.src, (v) => { change((d) => { d.view.background.src = v; }); }), st?.url ? `${st.width}×${st.height}px loaded.${kept}` : 'not loaded — drop the image onto the canvas'),
           field('Opacity', op),
           h('p', { class: 'muted small mono' }, (bg.calibration || []).map((c, i) => `#${i + 1} px(${c.px.join(', ')}) → world(${c.world.join(', ')})`).join('\n') || 'not calibrated'),
           h('div', { class: 'insp-actions' },
