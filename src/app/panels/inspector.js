@@ -11,6 +11,7 @@ import { layerLabel, typeLabel } from '../ui/layer-meta.js';
 import { h, clear, toast, renderKeepingFocus } from '../dom.js';
 import { icon } from '../ui/icons.js';
 import { renderLinks } from './links.js';
+import { iconButton } from '../ui/poi-icons.js';
 
 const fmtN = (v) => (v == null ? '' : String(Math.round(v * 100) / 100));
 
@@ -176,6 +177,15 @@ export function mountInspector(root, { canvas, mapSettings }) {
         h('div', { class: 'row2' },
           field(t('inspector.type'), text('type', p.type, (v) => { store.prefs.poiType = v || 'poi'; edit(id, (it) => { it.type = v || 'poi'; }); }, { list: 'dl-poi-types' }), typeHint),
           field(t('inspector.status'), sel('status', p.status || 'idea', POI_STATUSES.map((s) => [s, label('status', s)]), (v) => edit(id, (it) => { it.status = v; })))),
+        h('div', { class: 'row2' },
+          field(t('inspector.icon'), iconButton({
+            name: 'icon', value: p.icon || null, color: ps.color, withLabel: true,
+            inherit: rs.poiTypes[p.type]?.icon || 'dot',
+            inheritLabel: t('inspector.iconFromType', { icon: label('poiIcons', rs.poiTypes[p.type]?.icon || 'dot') }),
+            title: t('inspector.iconHint'), pickerTitle: t('inspector.icon'),
+            onPick: (v) => edit(id, (it) => { if (v) it.icon = v; else delete it.icon; }),
+          })),
+          field(t('inspector.colour'), colorOverride('color', p.color, ps.color, (v) => edit(id, (it) => { if (v) it.color = v; else delete it.color; })))),
         h('div', { class: 'row-zone' },
           field(t('inspector.zone'), sel('zone', p.zone || '', [['', t('inspector.noZone')], ...zones.map((z) => [z.id, z.name ? `${z.name} (${z.id})` : z.id])],
             (v) => edit(id, (it) => { if (v) it.zone = v; else delete it.zone; })), zoneHint),
@@ -191,8 +201,7 @@ export function mountInspector(root, { canvas, mapSettings }) {
       section(t('inspector.details'),
         field(t('inspector.tags'), tagsInput('tags', p.tags, (v) => edit(id, (it) => { if (v.length) it.tags = v; else delete it.tags; }))),
         field(t('inspector.notes'), area('notes', p.notes, (v) => edit(id, (it) => { if (v) it.notes = v; else delete it.notes; }))),
-        field(t('inspector.anchor'), text('anchor', p.anchor, (v) => edit(id, (it) => { if (v.trim()) it.anchor = v.trim(); else delete it.anchor; }), { placeholder: t('inspector.anchorPlaceholder') })),
-        field(t('inspector.colour'), colorOverride('color', p.color, ps.color, (v) => edit(id, (it) => { if (v) it.color = v; else delete it.color; })))),
+        field(t('inspector.anchor'), text('anchor', p.anchor, (v) => edit(id, (it) => { if (v.trim()) it.anchor = v.trim(); else delete it.anchor; }), { placeholder: t('inspector.anchorPlaceholder') }))),
       section(t('inspector.links'), renderLinks(id)),
       actions(hit),
     );
@@ -332,7 +341,6 @@ export function mountInspector(root, { canvas, mapSettings }) {
       else if (items[0].hit.kind === 'feature') renderFeature(items[0].hit);
       else renderNone();
       if (mapSettings) mapSettings.hidden = items.length > 0;
-      emit('inspector-mode', items.length ? 'selection' : 'map');
     });
   }
 

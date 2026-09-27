@@ -169,10 +169,17 @@ Gate ids share the global id namespace and can be link endpoints.
   "status": "approved",             // "idea" | "approved" | "slice" | "cut"
   "notes": "Collapsed entrance, second entrance from the quarry.",
   "anchor": "places.md#old-mine",   // link to the description document
-  "color": null,                    // optional override
+  "color": null,                    // optional override of the type colour
+  "icon": "skull",                  // optional override of the type icon (see below)
   "placed": true                    // false = listed but not yet on the map
 }
 ```
+
+POI icons (`style.poiTypes.<type>.icon` and the per-POI `icon` override):
+`dot`, `house`, `castle`, `tower`, `gate`, `ruin`, `tent`, `campfire`, `pick`,
+`cave`, `peak`, `tree`, `farm`, `anchor`, `bridge`, `shrine`, `skull`,
+`chest`, `star`, `flag`, `quest`, `question`. An unknown name is a
+validation warning and falls back to the type icon.
 
 ## Link
 

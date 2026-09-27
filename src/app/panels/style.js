@@ -1,7 +1,8 @@
 // Style panel: preset + per-layer and per-type colours (stored as overrides in doc.style).
 
 import { store, on, change } from '../state.js';
-import { resolveStyle, PRESETS, POI_ICONS } from '../../core/styles.js';
+import { resolveStyle, PRESETS } from '../../core/styles.js';
+import { iconButton } from '../ui/poi-icons.js';
 import { DRAW_ORDER } from '../../core/schema.js';
 import { h, clear, renderKeepingFocus, openDialog, toast } from '../dom.js';
 import { slugify } from '../../core/model.js';
@@ -87,11 +88,14 @@ export function mountStyle(root) {
       // poi types
       const pt = h('table', { class: 'style-table' }, h('tr', {}, h('th', {}, t('style.poiType')), h('th', {}, t('style.colour')), h('th', {}, t('style.icon'))));
       for (const [name, e] of Object.entries(rs.poiTypes)) {
-        const ic = h('select', { name: `pi-${name}` }, POI_ICONS.map((p) => h('option', { value: p, selected: e.icon === p }, label('poiIcons', p))));
-        ic.addEventListener('change', () => setOverride('poiTypes', name, 'icon', ic.value));
+        const ic = iconButton({
+          name: `pi-${name}`, value: e.icon || 'dot', color: e.color, withLabel: true,
+          title: t('style.iconPick', { type: label('poiTypes', name) }),
+          onPick: (v) => setOverride('poiTypes', name, 'icon', v || 'dot'),
+        });
         pt.append(h('tr', {}, h('td', { title: name }, label('poiTypes', name)), h('td', {}, colorCell(`pc-${name}`, e.color, (v) => setOverride('poiTypes', name, 'color', v))), h('td', {}, ic)));
       }
-      body.append(h('section', { class: 'insp-section' }, h('h4', {}, t('style.poiTypes')), pt, addTypeButton('poiTypes', { color: '#8ecae6', icon: 'dot' })));
+      body.append(h('section', { class: 'insp-section' }, h('h4', {}, t('style.poiTypes')), h('p', { class: 'muted small' }, t('style.poiTypesHint')), pt, addTypeButton('poiTypes', { color: '#8ecae6', icon: 'dot' })));
 
       // wall + line types
       const wt = h('table', { class: 'style-table' }, h('tr', {}, h('th', {}, t('style.wallLineType')), h('th', {}, t('style.stroke')), h('th', {}, t('style.dash'))));

@@ -20,6 +20,21 @@ export const ICONS = {
   ruin: '<path fill="currentColor" d="M-8.5 8 H8.5 V5.8 H-8.5 Z M-6.8 5.8 V-4.5 H-3.4 V5.8 Z M-1.7 5.8 V-7.5 H1.7 V-2 L0.4 -0.6 L1.7 0.8 V5.8 Z M3.4 5.8 V0.5 L5.1 -1.2 L6.8 0.5 V5.8 Z"/>',
   tent: '<path fill="currentColor" fill-rule="evenodd" d="M-9 7.5 L0 -8 L9 7.5 Z M-2.4 7.5 L0 2.2 L2.4 7.5 Z"/>',
   gate: '<path fill="currentColor" d="M-8 8 V-3 A8 8 0 0 1 8 -3 V8 H4.2 V-2.2 A4.2 4.2 0 0 0 -4.2 -2.2 V8 Z"/>',
+  tower: '<path fill="currentColor" fill-rule="evenodd" d="M-4.5 8 V-4 H-6 V-8.5 H-3.6 V-6.8 H-1.2 V-8.5 H1.2 V-6.8 H3.6 V-8.5 H6 V-4 H4.5 V8 Z M-1.1 -1.5 H1.1 V2 H-1.1 Z"/>',
+  campfire: '<path fill="currentColor" d="M0 -8.5 C3.8 -5 4.8 -1.6 2.9 1.4 C2.5 -0.8 1.5 -1.8 0.5 -2.4 C0.9 -0.2 -0.5 1.1 -1.8 1.8 C-3.8 -0.8 -3.1 -4.6 0 -8.5 Z"/><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="M-7 7.5 L7 3.8 M-7 3.8 L7 7.5"/>',
+  cave: '<path fill="currentColor" fill-rule="evenodd" d="M-9.5 8 C-9 -1 -5 -7 0 -7 C5 -7 9 -1 9.5 8 Z M-3.5 8 V3 A3.5 3.5 0 0 1 3.5 3 V8 Z"/>',
+  peak: '<path fill="currentColor" d="M-9.5 7.5 L-3 -3 L0 1 L3.5 -7.5 L9.5 7.5 Z"/>',
+  tree: '<path fill="currentColor" d="M0 -9 L6.5 1 H3 L7.5 6 H1.3 V9 H-1.3 V6 H-7.5 L-3 1 H-6.5 Z"/>',
+  farm: '<path fill="currentColor" fill-rule="evenodd" d="M-8 8 V-2 L-4.5 -7 H4.5 L8 -2 V8 Z M-3 8 V2 H3 V8 Z"/>',
+  anchor: '<g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cy="-6" r="2"/><path d="M0 -4 V8 M-4 -1 H4 M-7.5 2.5 C-7 6.5 -3.5 8 0 8 C3.5 8 7 6.5 7.5 2.5"/></g>',
+  bridge: '<path fill="currentColor" d="M-10 -3 H10 V6 H6.5 A6.5 5 0 0 0 -6.5 6 H-10 Z"/>',
+  shrine: '<path fill="currentColor" d="M-9.5 -7.5 H9.5 L8.5 -5 H-8.5 Z M-7 -3 H7 V-1 H-7 Z M-5.8 -5 H-3.4 V8 H-5.8 Z M3.4 -5 H5.8 V8 H3.4 Z"/>',
+  skull: '<path fill="currentColor" fill-rule="evenodd" d="M0 -8.5 C5 -8.5 8 -5 8 -1 C8 2 6.5 3.5 5 4 V7.5 H-5 V4 C-6.5 3.5 -8 2 -8 -1 C-8 -5 -5 -8.5 0 -8.5 Z M-5.4 -1.5 a2.3 2.3 0 1 0 4.6 0 a2.3 2.3 0 1 0 -4.6 0 Z M0.8 -1.5 a2.3 2.3 0 1 0 4.6 0 a2.3 2.3 0 1 0 -4.6 0 Z"/>',
+  chest: '<path fill="currentColor" fill-rule="evenodd" d="M-9 -1 V-3 C-9 -6 -7 -7.5 -4 -7.5 H4 C7 -7.5 9 -6 9 -3 V-1 Z M-9 0.5 H9 V7.5 H-9 Z"/><rect x="-1.6" y="-2.2" width="3.2" height="4.6" rx="0.6" fill="currentColor" stroke="#000" stroke-opacity="0.35" stroke-width="0.8"/>',
+  star: '<path fill="currentColor" d="M0 -9 L2.23 -3.07 L8.56 -2.78 L3.61 1.17 L5.29 7.28 L0 3.8 L-5.29 7.28 L-3.61 1.17 L-8.56 -2.78 L-2.23 -3.07 Z"/>',
+  flag: '<path fill="currentColor" d="M-6 -8.5 H-3.8 V8.5 H-6 Z M-3.8 -8 H7.5 L5 -4.5 L7.5 -1 H-3.8 Z"/>',
+  quest: '<path fill="currentColor" d="M-2 -8.5 H2 L1.2 3 H-1.2 Z"/><circle cy="6.4" r="2" fill="currentColor"/>',
+  question: '<path fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" d="M-4 -4 C-4 -7.5 -1.5 -8.5 0.3 -8.5 C3 -8.5 4.5 -6.8 4.5 -4.6 C4.5 -1.5 0.5 -1.2 0.5 2.2"/><circle cx="0.5" cy="6.5" r="1.8" fill="currentColor"/>',
 };
 
 const r2 = (v) => {

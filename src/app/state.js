@@ -27,15 +27,15 @@ function defaultPrefs() {
   for (const l of [...LAYERS, ...PSEUDO_LAYERS]) layers[l] = { visible: true, locked: false };
   return {
     layers,
-    // floating panels: { open, pos: null | {x, y} } (pos = dragged out of its dock column)
+    // floating panels (only Layers): { open, pos: null | {x, y} } (pos = dragged out of its dock column)
     panels: {
       layers: { open: true, pos: null },
-      points: { open: true, pos: null },
-      inspector: { open: true, pos: null },
-      style: { open: false, pos: null },
     },
-    inspectorAuto: true, // open the inspector when something gets selected
     sidebarOpen: true,
+    rightbarOpen: true, // docked right sidebar: POIs on top, Inspector / Style tabs below
+    rightTab: 'inspector',
+    rightSplit: 0.36, // share of the right sidebar height given to the POI list
+    exportScope: 'all', // 'all' | 'selection' (Export menu)
     snap: false, // snap to the grid by default (Shift inverts)
     newMapPreset: 'graphite',
     autosave: true,

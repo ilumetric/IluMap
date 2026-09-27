@@ -67,18 +67,18 @@ they live in `core/render-svg.js` because exports need them.
 ## Layout
 
 ```
-┌ sidebar 220px ┐┌ stage (full-bleed canvas, dot grid) ───────────────────────────┐
-│ IluMap    [◧] ││ [title · save]         [Layers Points Inspector Style │ Export▾]  [↶ ↷] │
-│ New map       ││                                                               │
-│ Search maps   ││ (●)  ┌ Layers ─┐                            ┌ Points ─┐  (▦)  │
-│ Open file     ││ (◎)  │         │                            └─────────┘  (T)  │
-│ Maps          ││ (⌇)  │         │          map                ┌ Inspector┐ (▣)  │
-│  Demo Isles ⋯ ││ (⬠)  └─────────┘                            │         │  (fit)│
-│  …            ││ (♜)                                         └─────────┘  (?)  │
-│               ││ (o)                                                           │
-│               ││ ─1 km─                   [tool hint]              x 12 y 34 cm │
-│ Settings      ││ [minimap]   [pw Roads │ La Wa Co Ri Ro Ra Wl Zo Po │ type o]  [S F │ - 100% + fit] │
-└───────────────┘└───────────────────────────────────────────────────────────────┘
+┌ sidebar 220px ┐┌ stage (full-bleed canvas, dot grid) ─────────────────────────┐┌ right sidebar 320px ┐
+│ IluMap    [◧] ││ [title · save]   [Layers │ ▦ T ▣ │ Export▾]      [↶ ↷ │ ◨] ││ ◎ Points          7 │
+│ New map       ││                                                            ││ [search…]       [+] │
+│ Search maps   ││ (●)  ┌ Layers ─┐                                           ││ statuses types zones│
+│ Open file     ││ (◎)  │         │                                           ││ Unplaced (1)        │
+│ Maps          ││ (⌇)  │         │          map                              ││ On the map (6)      │
+│  Demo Isles ⋯ ││ (⬠)  └─────────┘                                           │├──────── ═ ─────────┤
+│  …            ││ (♜)                                                        ││ [Inspector | Style] │
+│               ││ (o)                                                        ││                     │
+│               ││ ─1 km─              [tool hint]            x 12 y 34 cm   ││  properties of the  │
+│ Settings  RU  ││ [minimap]  [pw Roads │ La Wa … Po │ type o]  [S F │ - % + fit │ ? ⚙] ││  selection / style  │
+└───────────────┘└────────────────────────────────────────────────────────────┘└─────────────────────┘
 ```
 
 * **Sidebar** (`#sidebar`, `ui/sidebar.js`): 220px, `--bg-sidebar`, 1px
@@ -93,8 +93,17 @@ they live in `core/render-svg.js` because exports need them.
   menu headed "Language" listing Русский, then English, with a teal check on
   the active one. `Ctrl+B` collapses the sidebar; a round FAB in the stage's
   top-left corner reopens it, and while it is collapsed a Settings gear
-  appears at the bottom of the right view stack (Settings has the language
-  select too).
+  appears at the end of the zoom pill (Settings has the language select too).
+* **Right sidebar** (`#rightbar`, `ui/rightbar.js`): docked, not floating;
+  320px (284px below a 1280px window), `--bg-sidebar`, 1px `--border-subtle`
+  left edge. Top: **Points** (44px header with icon, title and count; the POI
+  list with search, filters, the Unplaced section and drag-to-map). A 7px
+  **splitter** (row-resize, a 36px grab bar on hover, teal while dragging;
+  arrow keys when focused, double-click resets) divides it from the bottom
+  part; the split is a UI pref, 36% by default. Bottom: a segmented **tab
+  bar** (Inspector | Style) and the tab body. A new selection switches to
+  Inspector; with nothing selected the Inspector shows the map settings. The
+  top-right pill toggles the whole sidebar (`]`).
 * **Stage** (`#stage`): the SVG canvas fills it. The CSS dot grid (1px dots,
   20–40px spacing, `--dot-size/x/y` updated by `canvas.js`) follows pan and
   zoom. The map's ocean is drawn only inside `view.bounds`; the bounds edge is
@@ -103,45 +112,49 @@ they live in `core/render-svg.js` because exports need them.
   * top-left **title pill**: logo, map name (click / `F2` to rename inline),
     save button with the yellow unsaved dot; the tooltip says whether the map
     is linked to a file.
-  * top-centre **panel toggles**: text + icon buttons; on = `--surface-hover`
-    background. The Export button opens a menu (Save, Save as, JSON, SVG,
-    PNG, Masks, Copy as text).
-  * top-right **history pill**: undo / redo.
+  * top-centre **view pill**: the Layers panel toggle (text + icon), the view
+    toggles grid (`G`), labels and background image (popover: opacity,
+    calibrate, fit, replace, remove), then the **Export** menu. The menu
+    starts with a scope switch — *Whole map* / *Selection (n)* (disabled when
+    nothing is selected, remembered in the UI prefs) — followed by JSON, SVG,
+    PNG, Masks, Copy as text, Save, Save as. On = `--surface-hover`.
+  * top-right **history pill**: undo / redo, then the right-sidebar toggle.
   * left **tool stack** (vertically centred): round pills separated by 8px:
     [Layers] · [Select, Pan] · [Line, Polygon, Wall, POI] · [Measure,
     Calibrate, Delete]. Buttons are 32px circles; the active tool is filled
     with `--accent`. Draw tools have a 2px underline in the colour of the
     layer they will draw into (`layer-meta.js` → `layerColor`, adjusted for
     contrast by `chromeTint`).
-  * right **view stack**: grid, labels, background image (popover: opacity,
-    calibrate, fit, replace, remove), fit, keyboard shortcuts (and Settings
-    while the sidebar is collapsed).
   * bottom-centre **layer dock**: power toggle (visibility of the active
     layer; teal when visible), the layer name + "n features · new: type",
     one 28px chip per layer (2-letter abbreviation, 2px ring in the layer
     colour, filled when active, dashed + faded when hidden), the type for new
     features and a colour swatch (edits the layer colour, or the zone / POI
     type colour). Choosing a chip while a draw tool is on switches to the
-    tool that fits the layer; the POIs chip picks the POI tool.
+    tool that fits the layer; the POIs chip picks the POI tool. It is centred
+    in the free space between the minimap and the zoom pill.
   * bottom-left: **scale bar** above the **minimap** card (180×120, the map
     rendered by `render-svg.js` into an `<img>`, the viewport as a teal
     rectangle; click / drag / wheel to navigate).
   * bottom-right **zoom pill**: snap and flipY toggles (teal when on), zoom
-    − / % / +, fit. The **cursor read-out** (coordinates in mono, land /
-    water · zone, selection count in teal) sits just above it.
+    − / % / +, fit, keyboard shortcuts (and Settings while the sidebar is
+    collapsed). The **cursor read-out** (coordinates in mono, land / water ·
+    zone, selection count in teal) sits just above it.
   * above the dock: the **tool HUD** (hint and live measurement), only while
     a tool other than Select is active.
-* **Floating panels** (`ui/floating-panel.js`): cards with a 42px header
-  (icon, title, actions, close) and a scrolling body; max height 70vh. They
-  stack in a dock column — Layers on the left next to the tool stack;
-  Points, Inspector and Style on the right next to the view stack. Dragging
-  the header floats a panel (position saved in the UI prefs), double-clicking
-  the header docks it again. Open state is remembered. The Inspector opens on
-  selection unless its pin is off, and shows the map's own settings when
-  nothing is selected.
+* **Layers panel** (`ui/floating-panel.js`): the one floating card — 42px
+  header (icon, title, close) and a scrolling body, max height 70vh, docked
+  next to the tool stack. Dragging the header floats it (position saved in
+  the UI prefs); double-clicking the header docks it again.
+* **POI icon picker** (`ui/poi-icons.js`): a 252px popover with a 6-column
+  grid of the map symbols (36px cells, selected = teal ring); from the
+  Inspector it starts with a "From type (…)" row that clears the override.
 
-Below 1440px the dock hides its label; below 1180px the panel toggles show
-icons only and the minimap and dock type picker are hidden.
+The chrome on the canvas reacts to the width of the stage (a CSS size
+container), not the window, because the side bars take space: below 1000px
+the dock hides its label; below 860px the pills show icons only and the
+minimap and dock type picker are hidden; below 640px the view pill moves to
+a second row and the dock hides its chips.
 
 ## Components
 

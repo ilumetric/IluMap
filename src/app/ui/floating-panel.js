@@ -1,4 +1,5 @@
-// Floating panels (Layers, Points, Inspector, Style): cards that live in a
+// Floating panel card (used for Layers; POIs, Inspector and Style are docked in
+// the right sidebar, see rightbar.js). A card lives in a
 // dock column on the left or right of the canvas, or float freely after being
 // dragged by their header (double-click the header to dock it again).
 // Open state and positions are UI prefs (localStorage), never part of map.json.
@@ -99,7 +100,7 @@ export function createPanel({ id, titleKey, icon: iconName, dock = 'right', widt
     if (e.button !== 0 || e.target.closest('button, input, select')) return;
     const start = { x: e.clientX, y: e.clientY };
     let drag = null;
-    head.setPointerCapture(e.pointerId);
+    try { head.setPointerCapture(e.pointerId); } catch { /* synthetic or already released pointer */ }
     const move = (ev) => {
       if (!drag) {
         if (Math.hypot(ev.clientX - start.x, ev.clientY - start.y) < 4) return;

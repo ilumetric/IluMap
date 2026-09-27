@@ -16,6 +16,7 @@
   },
   "$defs": {
     "id": { "type": "string", "pattern": "^[a-z0-9_]+$" },
+    "poiIcon": { "enum": ["dot", "house", "castle", "tower", "gate", "ruin", "tent", "campfire", "pick", "cave", "peak", "tree", "farm", "anchor", "bridge", "shrine", "skull", "chest", "star", "flag", "quest", "question"] },
     "color": { "type": "string", "pattern": "^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$" },
     "point": {
       "type": "array",
@@ -80,7 +81,7 @@
         "dash": { "type": ["string", "null"] },
         "opacity": { "type": "number", "minimum": 0, "maximum": 1 },
         "pattern": { "type": "string", "description": "zones: hatch | dots; walls: crenel | ticks" },
-        "icon": { "enum": ["house", "castle", "pick", "ruin", "tent", "gate", "dot"] }
+        "icon": { "$ref": "#/$defs/poiIcon" }
       }
     },
     "styleMap": { "type": "object", "additionalProperties": { "$ref": "#/$defs/styleEntry" } },
@@ -191,6 +192,7 @@
         "notes": { "type": "string" },
         "anchor": { "type": "string" },
         "color": { "anyOf": [{ "$ref": "#/$defs/color" }, { "type": "null" }] },
+        "icon": { "anyOf": [{ "$ref": "#/$defs/poiIcon" }, { "type": "null" }], "description": "Overrides the icon of the POI type." },
         "placed": { "type": "boolean", "default": true }
       }
     },

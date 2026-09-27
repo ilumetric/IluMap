@@ -31,6 +31,12 @@ export const LAND_MODES = ['islands', 'filled'];
 export const TOWER_MODES = ['none', 'vertices', 'auto'];
 export const STYLE_PRESETS = ['graphite', 'blueprint', 'parchment'];
 
+/** Built-in POI symbols (paths in core/render-svg.js ICONS). */
+export const POI_ICONS = [
+  'dot', 'house', 'castle', 'tower', 'gate', 'ruin', 'tent', 'campfire', 'pick', 'cave', 'peak', 'tree',
+  'farm', 'anchor', 'bridge', 'shrine', 'skull', 'chest', 'star', 'flag', 'quest', 'question',
+];
+
 export const ID_RE = /^[a-z0-9_]+$/;
 const COLOR_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
 
@@ -64,7 +70,7 @@ export const KEY_ORDER = {
   feature: ['id', 'name', 'kind', 'type', 'points', 'closed', 'smooth', 'width', 'color', 'tags', 'notes', 'hidden', 'wall'],
   wall: ['towers', 'towerSpacing', 'towerSize', 'gates'],
   gate: ['id', 'name', 'at', 't'],
-  poi: ['id', 'name', 'x', 'y', 'type', 'zone', 'tags', 'status', 'notes', 'anchor', 'color', 'placed'],
+  poi: ['id', 'name', 'x', 'y', 'type', 'zone', 'tags', 'status', 'notes', 'anchor', 'color', 'icon', 'placed'],
   link: ['id', 'from', 'to', 'type', 'name', 'feature', 'notes'],
 };
 
@@ -325,6 +331,8 @@ export function validate(doc) {
       if (poi.tags !== undefined && !(Array.isArray(poi.tags) && poi.tags.every((t) => typeof t === 'string'))) err(`${p}.tags`, 'must be an array of strings');
       for (const k of ['notes', 'anchor']) if (poi[k] !== undefined && typeof poi[k] !== 'string') err(`${p}.${k}`, 'must be a string');
       if (poi.color !== undefined && poi.color !== null && !(typeof poi.color === 'string' && COLOR_RE.test(poi.color))) err(`${p}.color`, 'must be a #rrggbb colour or null');
+      if (poi.icon !== undefined && poi.icon !== null && typeof poi.icon !== 'string') err(`${p}.icon`, 'must be an icon name');
+      else if (typeof poi.icon === 'string' && !POI_ICONS.includes(poi.icon)) warn(`${p}.icon`, `unknown icon "${poi.icon}" (drawn as the type icon)`);
       if (poi.placed !== undefined && typeof poi.placed !== 'boolean') err(`${p}.placed`, 'must be a boolean');
       if (bounds && isNum(poi.x) && isNum(poi.y) && poi.placed !== false &&
           (poi.x < bounds.min[0] || poi.x > bounds.max[0] || poi.y < bounds.min[1] || poi.y > bounds.max[1])) {

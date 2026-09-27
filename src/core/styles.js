@@ -2,7 +2,9 @@
 // A document's `style` only stores the preset name plus overrides; the
 // effective style is resolveStyle(doc.style).
 
-export const POI_ICONS = ['house', 'castle', 'pick', 'ruin', 'tent', 'gate', 'dot'];
+import { POI_ICONS } from './schema.js';
+
+export { POI_ICONS };
 
 export const STATUS_COLORS = {
   idea: '#9aa5b1',
@@ -218,7 +220,8 @@ export function featureStyle(rs, layer, f) {
 
 export function poiStyle(rs, poi) {
   const T = rs.poiTypes[poi.type] || rs.poiTypes.poi || {};
-  return { color: poi.color || T.color || '#8ecae6', icon: POI_ICONS.includes(T.icon) ? T.icon : 'dot' };
+  const icon = POI_ICONS.includes(poi.icon) ? poi.icon : POI_ICONS.includes(T.icon) ? T.icon : 'dot';
+  return { color: poi.color || T.color || '#8ecae6', icon };
 }
 
 /** Lists of type names available for a layer / POIs (for UI dropdowns). */

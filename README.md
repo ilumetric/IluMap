@@ -73,18 +73,28 @@ memory for the session only.
 - **Left toolbar:** Layers panel · Select, Pan · Line, Polygon, Wall, POI ·
   Measure, Calibrate, Delete. Draw tools carry a coloured underline: the
   colour of the layer they will draw into.
-- **Top:** map name (click to rename) and Save · panel toggles (Layers,
-  Points, Inspector, Style) and the Export menu · undo / redo.
+- **Top:** map name (click to rename) and Save · Layers panel, grid /
+  labels / background toggles and the Export menu · undo / redo and the right
+  sidebar toggle.
 - **Bottom:** minimap and scale bar · the **layer dock** (visibility of the
   active layer, one chip per layer, the type and colour for new features) ·
-  snap and flipY toggles, zoom, cursor coordinates.
-- **Right toolbar:** grid, labels, background image (opacity, calibrate),
-  fit, keyboard shortcuts.
-- **Panels** float over the canvas; drag them by the header, double-click the
-  header to dock them again. The Inspector opens on selection (pin to turn
-  that off) and shows the map's own settings when nothing is selected.
-- **Settings** (bottom of the sidebar, `Ctrl+,`, or the gear in the right
-  toolbar while the sidebar is collapsed): language (Русский / English),
+  snap and flipY toggles, zoom, fit, keyboard shortcuts, cursor coordinates.
+- **Right sidebar:** the list of points of interest on top (search, filters,
+  *Unplaced*, drag onto the map; drag the divider to resize) and two tabs
+  below — **Inspector** (the selection, or the map's own settings when
+  nothing is selected) and **Style**.
+- **Layers panel** floats next to the toolbar; drag it by the header,
+  double-click the header to dock it again.
+- **Export:** the menu starts with a scope — *Whole map* or *Selection* —
+  and applies it to JSON, SVG, PNG, masks and copy-as-text. A selection
+  export keeps the selected features and POIs plus the links between them, in
+  the same world coordinates; SVG/PNG are cropped to the selection, masks
+  keep the map bounds so they line up with the whole-map masks.
+- **POI icons:** every POI type has a colour and an icon (Style tab → *POI
+  types*, click the icon to pick from 22 symbols). A single point can
+  override its icon and colour in the Inspector.
+- **Settings** (bottom of the sidebar, `Ctrl+,`, or the gear in the zoom pill
+  while the sidebar is collapsed): language (Русский / English),
   interface theme (System / Dark / Light), map style for new maps, coordinate
   units, autosave, clearing local maps.
 - **Language:** the `RU` / `EN` pill next to Settings. The first launch follows
@@ -210,7 +220,7 @@ The editor has the same export under **Export → Masks…** (top bar).
 | `Ctrl+S` / `Ctrl+Shift+S` / `Ctrl+O` | Save to map.json / save as / open a map.json as a local map |
 | `Ctrl+B` · `Ctrl+K` · `Ctrl+,` | Show / hide the sidebar · search local maps · settings (language, theme) |
 | `G` · `/` · `?` · `F2` | Grid · search POIs · help · rename the map |
-| `[` · `]` | Layers panel · Points + Inspector panels |
+| `[` · `]` | Layers panel · right sidebar |
 
 ## Development
 

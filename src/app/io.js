@@ -2,7 +2,7 @@
 // POI placement. Opening / importing maps lives in session.js.
 
 import { store, markSaved, change, emit, visibleLayers } from './state.js';
-import { normalize, serialize, validate, findById, zoneOf } from '../core/model.js';
+import { normalize, serialize, validate, findById, zoneOf, extractSelection, selectionBounds } from '../core/model.js';
 import { renderSvg } from '../core/render-svg.js';
 import { toText } from '../core/text-export.js';
 import { renderMask, maskFileName, maskSidecar, stringifySidecar, maskSources, zoneTypes } from '../core/render-mask.js';
@@ -99,21 +99,41 @@ export async function saveAs() {
 
 // --- exports ------------------------------------------------------------------
 
-export function exportJson() {
-  download(store.file.name || 'map.json', serialize(store.doc), 'application/json');
+/**
+ * What an export covers. scope 'all' = the whole map; 'selection' = only the
+ * selected features / POIs (+ links between them), in the same world
+ * coordinates. Returns null (after a toast) when the selection is empty.
+ */
+function exportScope(scope = 'all') {
+  const base = baseName(store.file.name);
+  if (scope !== 'selection') return { doc: store.doc, crop: null, base, selection: false };
+  const ids = [...store.selection];
+  if (!ids.length) { toast(t('toast.exportNothingSelected'), { type: 'warn' }); return null; }
+  return { doc: extractSelection(store.doc, ids), crop: selectionBounds(store.doc, ids, { pad: 0.12, minAspect: 0.6 }), base: `${base}-selection`, selection: true };
 }
 
-function exportSvgText(width = 2048) {
-  return renderSvg(store.doc, { width, layers: visibleLayers(), grid: store.doc.view.grid?.visible });
+export function exportJson(scope = 'all') {
+  const s = exportScope(scope);
+  if (!s) return;
+  download(s.selection ? `${s.base}.json` : (store.file.name || 'map.json'), serialize(s.doc), 'application/json');
 }
 
-export function exportSvg() {
-  download(`${baseName(store.file.name)}.svg`, exportSvgText(2048), 'image/svg+xml');
+function scopedSvg(s, width, grid) {
+  // a selection is cropped to its own extent; the whole map uses view.bounds
+  return renderSvg(s.doc, { width, layers: visibleLayers(), grid, bounds: s.crop || undefined });
 }
 
-export async function exportPng() {
+export function exportSvg(scope = 'all') {
+  const s = exportScope(scope);
+  if (!s) return;
+  download(`${s.base}.svg`, scopedSvg(s, 2048, store.doc.view.grid?.visible), 'image/svg+xml');
+}
+
+export async function exportPng(scope = 'all') {
+  const s = exportScope(scope);
+  if (!s) return;
   const res = await openDialog({
-    title: t('dialogs.png.title'),
+    title: t(s.selection ? 'dialogs.png.titleSelection' : 'dialogs.png.title'),
     fields: [
       { name: 'width', label: t('dialogs.png.width'), type: 'number', value: 4096, min: 64, max: 16384, step: 1 },
       { name: 'grid', label: t('dialogs.png.grid'), type: 'checkbox', value: false },
@@ -122,7 +142,7 @@ export async function exportPng() {
   });
   if (!res) return;
   const width = Math.max(64, Math.min(16384, Math.round(res.width || 4096)));
-  const svg = renderSvg(store.doc, { width, layers: visibleLayers(), grid: res.grid });
+  const svg = scopedSvg(s, width, res.grid);
   const blob = new Blob([svg], { type: 'image/svg+xml' });
   const url = URL.createObjectURL(blob);
   try {
@@ -135,7 +155,7 @@ export async function exportPng() {
     canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
     const png = await new Promise((ok) => canvas.toBlob(ok, 'image/png'));
     if (!png) throw new Error(t('toast.canvasTooLarge'));
-    download(`${baseName(store.file.name)}.png`, png);
+    download(`${s.base}.png`, png);
   } catch (e) {
     toast(t('toast.pngFailed', { error: e.message }), { type: 'error' });
   } finally {
@@ -162,12 +182,15 @@ async function pngBlobFromGrey(m) {
   }
 }
 
-export async function exportMasks() {
-  const doc = store.doc;
+export async function exportMasks(scope = 'all') {
+  const s = exportScope(scope);
+  if (!s) return;
+  // a selection keeps the full map bounds so its masks line up with the whole-map heightmap
+  const doc = s.doc;
   const sources = maskSources(doc);
   const res = await openDialog({
-    title: t('dialogs.masks.title'),
-    message: t('dialogs.masks.message'),
+    title: t(s.selection ? 'dialogs.masks.titleSelection' : 'dialogs.masks.title'),
+    message: t(s.selection ? 'dialogs.masks.messageSelection' : 'dialogs.masks.message'),
     fields: [
       { name: 'source', label: t('dialogs.masks.source'), type: 'select', value: store.prefs.maskSource || 'land', options: [...sources.map((s) => [s, maskSourceLabel(s)]), ['feature', t('dialogs.masks.sourceFeature')]] },
       { name: 'size', label: t('dialogs.masks.size'), type: 'number', value: store.prefs.maskSize || 2048, min: 16, max: 16384, step: 1 },
@@ -228,13 +251,15 @@ export async function exportMasks() {
   toast(t('toast.exportedMasks', { masks: plural('count.masks', files.length - 1) }), { type: 'ok' });
 }
 
-export async function copyText(format = 'markdown') {
-  const text = toText(store.doc, { format });
+export async function copyText(format = 'markdown', scope = 'all') {
+  const s = exportScope(scope);
+  if (!s) return;
+  const text = toText(s.doc, { format });
   try {
     await navigator.clipboard.writeText(text);
     toast(t(format === 'plain' ? 'toast.copiedPlain' : 'toast.copiedMarkdown', { lines: plural('count.lines', text.split('\n').length) }), { type: 'ok' });
   } catch {
-    download(`${baseName(store.file.name)}.md`, text, 'text/markdown');
+    download(`${s.base}.md`, text, 'text/markdown');
   }
 }
 

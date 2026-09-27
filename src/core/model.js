@@ -323,3 +323,59 @@ export function removeVertex(feature, index) {
   }
   return true;
 }
+
+// ---------------------------------------------------------------------------
+// Partial documents (export of a selection)
+
+/**
+ * A copy of the document that keeps only the given items: features, POIs and
+ * gates (a gate keeps its whole wall). meta, view and style are kept so the
+ * result is a valid map in the same world coordinates. Links survive when
+ * both ends are kept; references to dropped features (link.feature, POI zone)
+ * are removed.
+ */
+export function extractSelection(doc, ids) {
+  const want = new Set(ids);
+  for (const id of ids) {
+    const hit = findById(doc, id);
+    if (hit?.kind === 'gate') want.add(hit.feature.id);
+  }
+  const out = clone(doc);
+  for (const l of LAYERS) out.layers[l] = (out.layers[l] || []).filter((f) => want.has(f.id));
+  out.pois = (out.pois || []).filter((p) => want.has(p.id));
+  const keep = allIds(out);
+  out.links = (out.links || []).filter((k) => keep.has(k.from) && keep.has(k.to));
+  for (const k of out.links) if (k.feature && !keep.has(k.feature)) delete k.feature;
+  for (const p of out.pois) if (p.zone && !keep.has(p.zone)) delete p.zone;
+  return out;
+}
+
+/**
+ * World bounding box of the given items ({min, max}), grown by `pad` (a
+ * fraction of the larger side, at least `minPad` world units) and, with
+ * `minAspect`, widened so neither side is shorter than minAspect × the other; null when
+ * none of them has a position (e.g. only unplaced POIs).
+ */
+export function selectionBounds(doc, ids, { pad = 0.08, minPad = 0, minAspect = 0 } = {}) {
+  let x0 = Infinity; let y0 = Infinity; let x1 = -Infinity; let y1 = -Infinity;
+  const add = ([x, y]) => { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); };
+  for (const id of ids) {
+    const hit = findById(doc, id);
+    if (!hit) continue;
+    if (hit.kind === 'poi') { if (hit.item.placed !== false) add([hit.item.x, hit.item.y]); } else if (hit.kind === 'feature') {
+      for (const p of hit.item.points || []) add(p);
+    } else if (hit.kind === 'gate') {
+      for (const p of hit.feature.points || []) add(p);
+    }
+  }
+  if (!Number.isFinite(x0)) return null;
+  const side = Math.max(x1 - x0, y1 - y0);
+  const m = Math.max(side * pad, minPad, side === 0 ? 1000 : 0);
+  let w = x1 - x0 + 2 * m;
+  let hgt = y1 - y0 + 2 * m;
+  // minAspect (0..1): grow the short side so the box is not a thin strip (image exports)
+  const ex = minAspect > 0 ? Math.max(0, hgt * minAspect - w) / 2 : 0;
+  const ey = minAspect > 0 ? Math.max(0, w * minAspect - hgt) / 2 : 0;
+  w += 2 * ex; hgt += 2 * ey;
+  return { min: [x0 - m - ex, y0 - m - ey], max: [x1 + m + ex, y1 + m + ey] };
+}

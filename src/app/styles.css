@@ -39,6 +39,7 @@
   --radius-menu: 10px;
   --radius-ctl: 8px;
   --sidebar-w: 220px;
+  --rightbar-w: 320px;
   --font: ui-sans-serif, -apple-system, "Segoe UI", Inter, Roboto, sans-serif;
   --mono: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
   color-scheme: dark;
@@ -107,14 +108,19 @@ kbd {
 
 /* ---------- layout ---------- */
 #app {
+  --sb: var(--sidebar-w);
+  --rb: var(--rightbar-w);
   display: grid;
-  grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
+  grid-template-columns: var(--sb) minmax(0, 1fr) var(--rb);
   height: 100vh;
 }
-#app.sidebar-closed { grid-template-columns: 0 minmax(0, 1fr); }
+#app.sidebar-closed { --sb: 0px; }
 #app.sidebar-closed #sidebar { display: none; }
+#app.rightbar-closed { --rb: 0px; }
+#app.rightbar-closed #rightbar { display: none; }
 #sidebar { grid-column: 1; grid-row: 1; }
-#stage { grid-column: 2; grid-row: 1; }
+#stage { grid-column: 2; grid-row: 1; container-type: size; container-name: stage; }
+#rightbar { grid-column: 3; grid-row: 1; }
 
 #stage {
   position: relative;
@@ -266,7 +272,6 @@ kbd {
   display: flex; flex-direction: column; align-items: center; gap: 8px;
 }
 #toolbar { left: 12px; }
-#view-tools { right: 12px; }
 .tb-group {
   display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px;
   background: var(--surface); border: 1px solid var(--border); border-radius: 22px; box-shadow: var(--shadow);
@@ -279,8 +284,8 @@ kbd {
 .tb-btn:hover:not(:disabled) { background: var(--surface-hover); color: var(--text); }
 .tb-btn:disabled { opacity: 0.35; cursor: default; }
 .tb-btn.on, .tb-btn.menu-open { color: var(--text); background: var(--surface-hover); }
-/* Settings in the view stack only while the sidebar (which holds it) is collapsed */
-#app:not(.sidebar-closed) .vt-settings { display: none; }
+/* Settings in the zoom pill only while the sidebar (which holds it) is collapsed */
+#app:not(.sidebar-closed) .zp-settings { display: none; }
 .tb-btn.active { background: var(--accent); color: var(--on-accent); }
 .tb-btn.active:hover { background: var(--accent-hover); color: var(--on-accent); }
 .tb-underline {
@@ -290,9 +295,11 @@ kbd {
 .tb-btn.active .tb-underline { box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25); }
 
 /* bottom: layer dock */
+/* centred in the free space between the minimap (left) and the zoom pill (right) */
 #dock {
-  position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
-  gap: 8px; padding: 4px 8px 4px 4px; max-width: calc(100% - 520px);
+  position: absolute; bottom: 12px; left: var(--dock-l, 204px); right: var(--dock-r, 316px);
+  width: max-content; margin-inline: auto;
+  gap: 8px; padding: 4px 8px 4px 4px; max-width: calc(100% - var(--dock-l, 204px) - var(--dock-r, 316px));
 }
 .dock-power {
   display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto;
@@ -379,7 +386,6 @@ kbd {
 /* ---------- floating panels ---------- */
 .dock-col { position: absolute; display: flex; flex-direction: column; gap: 10px; pointer-events: none; z-index: 5; }
 #dock-left { left: 64px; top: 64px; bottom: 180px; align-items: flex-start; }
-#dock-right { right: 64px; top: 64px; bottom: 96px; align-items: flex-end; }
 #float-layer { position: absolute; inset: 0; pointer-events: none; z-index: 6; }
 .fpanel {
   pointer-events: auto;
@@ -403,6 +409,79 @@ kbd {
 .fp-close { width: 28px; height: 28px; }
 .fp-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 8px 12px 12px; }
 .panel-hint { margin: 2px 2px 8px; font-size: 11.5px; color: var(--text-faint); }
+
+/* ---------- right sidebar: POIs on top, Inspector / Style tabs below ---------- */
+#rightbar {
+  --rb-split: 0.36;
+  display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden;
+  background: var(--bg-sidebar);
+  border-left: 1px solid var(--border-subtle);
+}
+.rb-points { display: flex; flex-direction: column; min-height: 0; flex: 0 0 calc(var(--rb-split) * (100% - 7px)); }
+.rb-tabs { display: flex; flex-direction: column; min-height: 0; flex: 1 1 0; }
+.rb-head {
+  display: flex; align-items: center; gap: 8px; flex: 0 0 auto;
+  height: 44px; padding: 0 12px 0 14px; font-weight: 600; font-size: 13px;
+}
+.rb-head > .ico { color: var(--text-muted); }
+.rb-title { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rb-count { font-size: 11.5px; font-weight: 400; color: var(--text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rb-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 0 12px 12px; }
+.rb-body[hidden] { display: none; }
+.rb-split {
+  flex: 0 0 7px; position: relative; cursor: row-resize; outline: none;
+}
+.rb-split::before {
+  content: ''; position: absolute; left: 0; right: 0; top: 3px; height: 1px; background: var(--border-subtle);
+}
+.rb-split::after {
+  content: ''; position: absolute; left: 50%; top: 1px; width: 36px; height: 5px; margin-left: -18px;
+  border-radius: 3px; background: var(--border); opacity: 0; transition: opacity 0.15s;
+}
+.rb-split:hover::after, .rb-split.dragging::after, .rb-split:focus-visible::after { opacity: 1; }
+.rb-split.dragging::before, .rb-split:focus-visible::before { background: var(--accent); }
+.rb-tabbar {
+  display: flex; gap: 2px; flex: 0 0 auto; margin: 6px 12px 8px; padding: 3px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+}
+.rb-tab {
+  flex: 1 1 0; min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  height: 30px; padding: 0 8px; border: 0; border-radius: 9px; background: none;
+  color: var(--text-muted); font-size: 12.5px; white-space: nowrap;
+}
+.rb-tab span { overflow: hidden; text-overflow: ellipsis; }
+.rb-tab:hover { color: var(--text); background: var(--surface-hover); }
+.rb-tab.on { color: var(--text); background: var(--surface-hover); font-weight: 600; }
+.rb-tabs .rb-body { padding-top: 2px; }
+/* sticky tool rows inside the sidebar use its background */
+#rightbar .poi-tools { background: var(--bg-sidebar); top: 0; }
+
+/* ---------- POI icon picker ---------- */
+.poi-sym { display: inline-flex; flex: 0 0 auto; }
+.poi-sym svg { display: block; }
+.icon-pick-btn {
+  display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 8px; min-width: 36px;
+  background: var(--input); border: 1px solid var(--input-border); border-radius: var(--radius-ctl); color: var(--text);
+}
+.icon-pick-btn:hover { border-color: var(--text-faint); }
+.icon-pick-btn.with-label { width: 100%; justify-content: flex-start; }
+.icon-pick-btn.inherited .icon-pick-label { color: var(--text-muted); }
+.icon-pick-label { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12.5px; }
+.style-table .icon-pick-btn.with-label { height: 28px; }
+.icon-pop { width: 252px; }
+.icon-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; }
+.icon-cell {
+  display: inline-flex; align-items: center; justify-content: center; height: 36px;
+  background: var(--surface-2); border: 1px solid transparent; border-radius: 9px;
+}
+.icon-cell:hover, .icon-cell:focus-visible { background: var(--surface-hover); outline: none; border-color: var(--border); }
+.icon-cell.on { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.icon-inherit {
+  display: flex; align-items: center; gap: 8px; width: 100%; height: 34px; margin-bottom: 8px; padding: 0 8px;
+  background: var(--surface-2); border: 1px solid transparent; border-radius: 9px; color: var(--text-muted); font-size: 12.5px;
+}
+.icon-inherit:hover { background: var(--surface-hover); color: var(--text); }
+.icon-inherit.on { border-color: var(--accent); color: var(--text); }
 
 /* ---------- menus & popovers ---------- */
 #menus { position: fixed; inset: 0; pointer-events: none; z-index: 150; }
@@ -674,25 +753,30 @@ table.keys td:first-child { white-space: nowrap; width: 1%; }
 .toast-x svg { width: 14px; height: 14px; }
 @keyframes toast-in { from { transform: translateY(6px); opacity: 0; } to { transform: none; opacity: 1; } }
 
-/* ---------- smaller screens ---------- */
-@media (max-width: 1440px) {
+/* ---------- smaller screens ----------
+   Chrome on the canvas reacts to the width of the stage (container "stage"),
+   which shrinks when the side bars are open; the bars react to the window. */
+@container stage (max-width: 1000px) {
   .dock-label { display: none; }
-  #dock { max-width: calc(100% - 440px); }
 }
-@media (max-width: 1180px) {
-  :root { --sidebar-w: 200px; }
+@container stage (max-width: 860px) {
   .pill-btn span { display: none; }
   .pill-btn { padding: 0 8px; }
   #minimap { display: none; }
   #dock-left { bottom: 60px; }
   .dock-typewrap { display: none; }
-  #dock { max-width: calc(100% - 300px); }
+  #dock { --dock-l: 116px; }
   #coords .rd-where { display: none; }
 }
-@media (max-width: 760px) {
+@container stage (max-width: 640px) {
   #title-pill { max-width: calc(100% - 140px); }
   #panel-toggles { top: 60px; }
+  #dock-left { top: 110px; }
   #dock .dock-chips { display: none; }
+  #dock { --dock-r: 12px; bottom: 60px; }
+}
+@media (max-width: 1280px) {
+  :root { --sidebar-w: 200px; --rightbar-w: 284px; }
 }
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }

@@ -111,7 +111,7 @@ for the machine-checkable version. Summary:
   closed?, smooth?, width?, color?, tags?, notes?, hidden?, wall? }` (this is
   the canonical key order, see FORMAT.md).
 * `Poi`: `{ id, name, x, y, type, zone?, tags?, status: "idea"|"approved"|"slice"|"cut",
-  notes?, anchor?, color?, placed? }`. `placed: false` = in the list but not on
+  notes?, anchor?, color?, icon?, placed? }`. `placed: false` = in the list but not on
   the map yet (agent added it, human will drag it out).
 * `Link`: `{ id?, from, to, type: "road"|"rail"|"river"|"quest"|"sight"|…, name?, feature?, notes? }`
   `from`/`to` are POI or gate ids. `feature` optionally points at the Feature id
@@ -232,17 +232,21 @@ only colours map content.
 * `tools/` — one module per tool: select/move, pan, draw-line, draw-polygon,
   draw-wall, place-poi, measure, calibrate. Tools receive pointer events in
   world coords (`ctx.snap` = snap toggle XOR Shift).
-* `panels/` — contents of the floating panels: layers (visibility, lock,
+* `panels/` — panel contents: layers (floating panel; visibility, lock,
   colour, opacity; visibility and lock are per-user UI prefs, not part of
-  map.json), POI list (search, filters, "Unplaced" section, drag-to-map),
-  inspector (id, name, type, tags, status, notes, colour, points, wall
+  map.json), and in the docked right sidebar the POI list (search, filters,
+  "Unplaced" section, drag-to-map), inspector (id, name, type, tags, status,
+  notes, colour, icon, points, wall
   towers/gates, links; shows the map settings — meta, bounds, grid,
   background — when nothing is selected), style (preset + per-type colours).
 * `ui/` — the chrome: `icons.js` (every UI icon, inline SVG), `sidebar.js`,
-  `toolbar.js` (left tool stack, right view tools, background popover),
+  `toolbar.js` (left tool stack, background popover), `rightbar.js` (docked
+  right sidebar: POIs, splitter, Inspector / Style tabs), `poi-icons.js`
+  (POI symbol previews and the icon picker),
   `dock.js` (bottom layer dock), `minimap.js`, `chrome.js` (title, panel
-  toggles + Export menu, undo/redo, zoom pill, cursor read-out, tool HUD),
-  `floating-panel.js` (dockable, draggable panel cards), `menu.js` (menus and
+  toggles, view toggles + Export menu with the whole-map / selection scope,
+  undo/redo + right-sidebar toggle, zoom pill, cursor read-out, tool HUD),
+  `floating-panel.js` (the dockable, draggable Layers card), `menu.js` (menus and
   popovers), `layer-meta.js` (layer labels, colours, types for new features).
 * `i18n/` — UI localisation (Russian and English): `index.js` (`t`, `plural`,
   `label` for data values, `setLang` / `onLangChange`, `applyI18n` for
@@ -312,6 +316,14 @@ click on a big island never moves it by accident); POIs move immediately.
 | SVG | Export → SVG | `svg` | same renderer, world-unit viewBox, layers as `<g id="layer-…">` |
 | PNG | Export → PNG (canvas raster of the SVG) | — | width configurable |
 | Text | Copy as text | `text` | markdown or plain, for agents |
+
+Every browser export takes a **scope**: the whole map, or the current
+selection. A selection goes through `extractSelection(doc, ids)` in
+`src/core/model.js` (selected features / POIs, a gate keeps its wall, links
+whose both ends are kept, dangling `feature` / `zone` references removed —
+the result is a valid map in the same world coordinates). SVG / PNG of a
+selection are cropped to `selectionBounds(doc, ids, { pad, minAspect })`;
+masks keep `view.bounds` so they align with the whole-map masks.
 | **Masks** | Export → Masks | `mask` | black/white PNG for heightmap tools (Gaea, World Machine, UE landscape) |
 
 ### Masks (`src/core/render-mask.js`)

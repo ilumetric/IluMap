@@ -1,11 +1,12 @@
 // Floating pills around the canvas:
 //   top-left     map name (inline rename) + save, unsaved dot, file-link tooltip
-//   top-centre   panel toggles (Layers, Points, Inspector, Style) + Export menu
-//   top-right    undo / redo
-//   bottom-right snap + flipY toggles, zoom − / % / +, fit; cursor read-out above
+//   top-centre   Layers panel toggle, grid / labels / background toggles, Export menu
+//   top-right    undo / redo, right sidebar toggle
+//   bottom-right snap + flipY toggles, zoom − / % / +, fit, shortcuts, settings; cursor read-out above
 //   bottom-centre (above the dock) tool hint / status HUD
 
-import { store, on, change, savePrefs, canUndo, canRedo } from '../state.js';
+import { store, on, emit, change, savePrefs, canUndo, canRedo, layerPrefs, isLayerVisible } from '../state.js';
+import { openBackgroundPopover } from './toolbar.js';
 import { zoneOf, isLand, findById } from '../../core/model.js';
 import { h } from '../dom.js';
 import { icon } from './icons.js';
@@ -73,49 +74,60 @@ export function mountTitlePill() {
   return { rename: startEdit };
 }
 
+/**
+ * Top-centre pill: Layers panel toggle · view toggles (grid, labels,
+ * background image) · Export menu with a scope switch (whole map / selection).
+ */
 export function mountPanelToggles({ panels }) {
   const root = document.getElementById('panel-toggles');
-  const defs = [
-    ['layers', 'layers', '['],
-    ['points', 'points', '/'],
-    ['inspector', 'inspector', ']'],
-    ['style', 'style', ''],
-  ];
-  const btns = new Map();
-  for (const [id, ico] of defs) {
-    const b = h('button', {
-      type: 'button', class: 'pill-btn', 'aria-pressed': 'false',
-      onclick: () => panels[id].toggle(),
-    }, icon(ico), h('span', {}));
-    btns.set(id, b);
-    root.append(b);
-  }
-  root.append(h('span', { class: 'pill-sep' }));
+  const layersLabel = h('span', {});
+  const layers = h('button', { type: 'button', class: 'pill-btn', 'aria-pressed': 'false', onclick: () => panels.layers.toggle() }, icon('layers'), layersLabel);
+
+  const grid = h('button', { type: 'button', class: 'icon-btn toggle', onclick: () => change((d) => { d.view.grid.visible = !(d.view.grid.visible !== false); }) }, icon('grid'));
+  const labels = h('button', {
+    type: 'button', class: 'icon-btn toggle',
+    onclick: () => { const p = layerPrefs('labels'); p.visible = !p.visible; savePrefs(); emit('layers'); },
+  }, icon('labels'));
+  const bg = h('button', { type: 'button', class: 'icon-btn toggle', 'aria-haspopup': 'dialog', onclick: () => openBackgroundPopover(bg) }, icon('image'));
+
   const expLabel = h('span', {});
   const exp = h('button', { type: 'button', class: 'pill-btn', 'aria-haspopup': 'menu' }, icon('download'), expLabel, icon('chevronDown'));
-  exp.addEventListener('click', () => openMenu([
-    { label: t('export.save'), icon: 'save', kbd: 'Ctrl+S', onClick: () => save() },
-    { label: t('export.saveAs'), icon: 'save', kbd: 'Ctrl+Shift+S', onClick: () => saveAs() },
-    '-',
-    { label: t('export.json'), icon: 'fileJson', onClick: () => exportJson() },
-    { label: t('export.svg'), icon: 'vector', onClick: () => exportSvg() },
-    { label: t('export.png'), icon: 'image', onClick: () => exportPng() },
-    { label: t('export.masks'), icon: 'mask', onClick: () => exportMasks() },
-    '-',
-    { label: t('export.copyMarkdown'), icon: 'clipboard', onClick: () => copyText('markdown') },
-    { label: t('export.copyPlain'), icon: 'clipboard', onClick: () => copyText('plain') },
-  ], { anchor: exp, align: 'end' }));
-  root.append(exp);
+  const openExport = () => {
+    const n = store.selection.size;
+    const scope = n && store.prefs.exportScope === 'selection' ? 'selection' : 'all';
+    const setScope = (v) => { store.prefs.exportScope = v; savePrefs(); openExport(); };
+    openMenu([
+      { heading: t('export.scope') },
+      { label: t('export.scopeAll'), checked: scope === 'all', onClick: () => setScope('all') },
+      {
+        label: n ? plural('export.scopeSelection', n) : t('export.scopeSelectionNone'),
+        checked: scope === 'selection', disabled: !n, hint: n ? t('export.scopeSelectionHint') : t('export.scopeSelectionNoneHint'),
+        onClick: () => setScope('selection'),
+      },
+      '-',
+      { label: t('export.json'), icon: 'fileJson', onClick: () => exportJson(scope) },
+      { label: t('export.svg'), icon: 'vector', onClick: () => exportSvg(scope) },
+      { label: t('export.png'), icon: 'image', onClick: () => exportPng(scope) },
+      { label: t('export.masks'), icon: 'mask', onClick: () => exportMasks(scope) },
+      '-',
+      { label: t('export.copyMarkdown'), icon: 'clipboard', onClick: () => copyText('markdown', scope) },
+      { label: t('export.copyPlain'), icon: 'clipboard', onClick: () => copyText('plain', scope) },
+      '-',
+      { label: t('export.save'), icon: 'save', kbd: 'Ctrl+S', onClick: () => save() },
+      { label: t('export.saveAs'), icon: 'save', kbd: 'Ctrl+Shift+S', onClick: () => saveAs() },
+    ], { anchor: exp, align: 'end' });
+  };
+  exp.addEventListener('click', openExport);
+  root.append(layers, h('span', { class: 'pill-sep' }), grid, labels, bg, h('span', { class: 'pill-sep' }), exp);
 
+  const titled = [[grid, 'toolbar.grid', ''], [labels, 'toolbar.labels', ''], [bg, 'toolbar.background', '']];
   const relabel = () => {
     root.setAttribute('aria-label', t('panels.toggles'));
-    for (const [id, , key] of defs) {
-      const b = btns.get(id);
-      const label = t(`panels.${id}.title`);
-      b.querySelector('span:not(.ico)').textContent = label;
-      b.title = key ? t('panels.toggleKey', { panel: label, key }) : t('panels.toggle', { panel: label });
-      b.setAttribute('aria-label', label);
-    }
+    const label = t('panels.layers.title');
+    layersLabel.textContent = label;
+    layers.title = t('panels.toggleKey', { panel: label, key: '[' });
+    layers.setAttribute('aria-label', label);
+    for (const [b, key, kbd] of titled) { b.title = `${t(key)}${kbd}`; b.setAttribute('aria-label', t(key)); }
     expLabel.textContent = t('export.button');
     exp.title = t('export.title');
     exp.setAttribute('aria-label', t('export.button'));
@@ -124,21 +136,40 @@ export function mountPanelToggles({ panels }) {
   relabel();
 
   const update = () => {
-    for (const [id, b] of btns) {
-      const open = panels[id].isOpen();
-      b.classList.toggle('on', open);
-      b.setAttribute('aria-pressed', String(open));
-    }
+    const lo = panels.layers.isOpen();
+    layers.classList.toggle('on', lo);
+    layers.setAttribute('aria-pressed', String(lo));
+    const g = store.doc.view.grid?.visible !== false;
+    grid.classList.toggle('on', g);
+    grid.setAttribute('aria-pressed', String(g));
+    const l = isLayerVisible('labels');
+    labels.classList.toggle('on', l);
+    labels.setAttribute('aria-pressed', String(l));
+    bg.classList.toggle('on', !!store.background?.url);
   };
   on('panels', update);
+  on('layers', update);
+  on('background', update);
+  on('doc', (d) => { if (!d?.live) update(); });
   update();
 }
 
-export function mountHistory({ undoCmd, redoCmd }) {
+export function mountHistory({ undoCmd, redoCmd, rightbar }) {
   const root = document.getElementById('history-pill');
   const u = h('button', { type: 'button', class: 'icon-btn', onclick: undoCmd }, icon('undo'));
   const r = h('button', { type: 'button', class: 'icon-btn', onclick: redoCmd }, icon('redo'));
-  root.append(u, r);
+  const side = h('button', { type: 'button', class: 'icon-btn toggle', onclick: () => rightbar.toggle() }, icon('panelRight'));
+  root.append(u, r, h('span', { class: 'pill-sep' }), side);
+  const updateSide = () => {
+    const open = rightbar.isOpen();
+    side.classList.toggle('on', open);
+    side.setAttribute('aria-pressed', String(open));
+    side.title = `${t(open ? 'rightbar.hide' : 'rightbar.show')} (])`;
+    side.setAttribute('aria-label', t('rightbar.toggle'));
+  };
+  on('rightbar', updateSide);
+  onLangChange(updateSide);
+  updateSide();
   const relabel = () => {
     root.setAttribute('aria-label', t('history.aria'));
     u.title = `${t('history.undo')} (Ctrl+Z)`;
@@ -154,7 +185,7 @@ export function mountHistory({ undoCmd, redoCmd }) {
   update();
 }
 
-export function mountZoomPill({ canvas }) {
+export function mountZoomPill({ canvas, showHelp, openSettings }) {
   const root = document.getElementById('zoom-pill');
   const snap = h('button', { type: 'button', class: 'icon-btn toggle' }, icon('magnet'));
   const flip = h('button', { type: 'button', class: 'icon-btn toggle' }, icon('flipY'));
@@ -162,8 +193,11 @@ export function mountZoomPill({ canvas }) {
   const zoomOut = h('button', { type: 'button', class: 'icon-btn', onclick: () => canvas.zoomBy(1 / 1.4) }, icon('minus'));
   const zoomIn = h('button', { type: 'button', class: 'icon-btn', onclick: () => canvas.zoomBy(1.4) }, icon('plus'));
   const fitBtn = h('button', { type: 'button', class: 'icon-btn', onclick: () => canvas.fit() }, icon('fit'));
-  root.append(snap, flip, h('span', { class: 'pill-sep' }), zoomOut, pct, zoomIn, fitBtn);
-  const titled = [[zoomOut, 'zoom.out', ' (−)'], [zoomIn, 'zoom.in', ' (+)'], [fitBtn, 'zoom.fit', ' (F)']];
+  const keys = h('button', { type: 'button', class: 'icon-btn', onclick: () => showHelp() }, icon('keyboard'));
+  // Settings (and the language in it) stay reachable while the sidebar is collapsed
+  const settings = h('button', { type: 'button', class: 'icon-btn zp-settings', onclick: () => openSettings() }, icon('settings'));
+  root.append(snap, flip, h('span', { class: 'pill-sep' }), zoomOut, pct, zoomIn, fitBtn, h('span', { class: 'pill-sep' }), keys, settings);
+  const titled = [[zoomOut, 'zoom.out', ' (−)'], [zoomIn, 'zoom.in', ' (+)'], [fitBtn, 'zoom.fit', ' (F)'], [keys, 'toolbar.shortcuts', ''], [settings, 'toolbar.settings', '']];
 
   snap.addEventListener('click', () => {
     store.prefs.snap = !store.prefs.snap;

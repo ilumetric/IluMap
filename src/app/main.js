@@ -14,10 +14,10 @@ import { mountMapSettings } from './panels/map.js';
 import { mountStyle } from './panels/style.js';
 import { removeById, zoneOf } from '../core/model.js';
 import { $, h, isTyping, openDialog, toast } from './dom.js';
-import { icon } from './ui/icons.js';
 import { createPanel, clampFloatingPanels } from './ui/floating-panel.js';
 import { mountSidebar } from './ui/sidebar.js';
-import { mountToolbar, mountViewTools } from './ui/toolbar.js';
+import { mountToolbar } from './ui/toolbar.js';
+import { mountRightbar } from './ui/rightbar.js';
 import { mountDock } from './ui/dock.js';
 import { mountMinimap } from './ui/minimap.js';
 import {
@@ -27,45 +27,28 @@ import { closeMenu, isMenuOpen } from './ui/menu.js';
 import { applyTheme, openSettings } from './settings.js';
 import { initSession, openFileCommand, handleDroppedFiles, hasUnpersistedChanges } from './session.js';
 import { persistent } from './projects.js';
-import { t, plural, onLangChange, applyI18n } from './i18n/index.js';
+import { t, plural, applyI18n } from './i18n/index.js';
 
 applyTheme();
 applyI18n(document);
 
 const canvas = new Canvas($('#stage'), { getTool: () => TOOLS[store.tool] });
 
-// --- floating panels -------------------------------------------------------------
-const inspectorPin = h('button', { type: 'button', class: 'icon-btn fp-pin' });
-const pointsCount = h('span', { class: 'fp-count' });
+// --- panels ----------------------------------------------------------------------
+// Layers is a floating panel; POIs, Inspector and Style live in the docked right sidebar.
+const rightbar = mountRightbar();
 const panels = {
   layers: createPanel({ id: 'layers', titleKey: 'panels.layers.title', icon: 'layers', dock: 'left', width: 272 }),
-  points: createPanel({ id: 'points', titleKey: 'panels.points.title', icon: 'points', dock: 'right', width: 300, actions: [pointsCount] }),
-  inspector: createPanel({ id: 'inspector', titleKey: 'panels.inspector.title', icon: 'inspector', dock: 'right', width: 300, actions: [inspectorPin] }),
-  style: createPanel({ id: 'style', titleKey: 'panels.style.title', icon: 'style', dock: 'right', width: 320 }),
 };
 
 mountLayers(panels.layers.body, { canvas });
-const poiList = mountPoiList(panels.points.body, { canvas, onCount: (t) => { pointsCount.textContent = t; } });
+const poiList = mountPoiList(rightbar.pointsBody, { canvas, onCount: (text) => rightbar.setCount(text) });
 const mapSettings = h('div', { class: 'map-settings' });
 mountMapSettings(mapSettings, { canvas });
-mountInspector(panels.inspector.body, { canvas, mapSettings });
-mountStyle(panels.style.body);
+mountInspector(rightbar.inspectorBody, { canvas, mapSettings });
+mountStyle(rightbar.styleBody);
 
-on('inspector-mode', (mode) => panels.inspector.setTitle(mode === 'map' ? 'panels.inspector.mapTitle' : 'panels.inspector.title'));
-on('open-panel', (id) => panels[id]?.open());
-
-function updatePin() {
-  const auto = store.prefs.inspectorAuto !== false;
-  inspectorPin.replaceChildren(icon(auto ? 'pin' : 'pinOff'));
-  inspectorPin.classList.toggle('on', auto);
-  inspectorPin.title = auto ? t('panels.inspector.pinOn') : t('panels.inspector.pinOff');
-  inspectorPin.setAttribute('aria-pressed', String(auto));
-  inspectorPin.setAttribute('aria-label', t('panels.inspector.pinAria'));
-}
-onLangChange(updatePin);
-inspectorPin.addEventListener('click', () => { store.prefs.inspectorAuto = store.prefs.inspectorAuto === false; updatePin(); emit('prefs'); });
-updatePin();
-on('selection', () => { if (store.selection.size && store.prefs.inspectorAuto !== false) panels.inspector.open(); });
+on('open-panel', (id) => (id === 'layers' ? panels.layers.open() : rightbar.show(id)));
 
 // --- tools -------------------------------------------------------------------------
 function activateTool(id) {
@@ -94,16 +77,17 @@ const redoCmd = () => { if (!redo()) toast(t('toast.nothingToRedo'), { timeout: 
 const sidebar = mountSidebar({ openSettings });
 const titlePill = mountTitlePill();
 mountPanelToggles({ panels });
-mountHistory({ undoCmd, redoCmd });
+mountHistory({ undoCmd, redoCmd, rightbar });
 mountToolbar({ tools: TOOLS, activateTool, deleteSelection, panels });
-mountViewTools({ canvas, showHelp, openSettings });
 mountDock();
 mountMinimap({ canvas });
-mountZoomPill({ canvas });
+mountZoomPill({ canvas, showHelp, openSettings });
 mountReadout();
 const updateHud = mountHud({ tools: TOOLS });
 
 new ResizeObserver(() => clampFloatingPanels()).observe($('#stage'));
+// the canvas keeps its view when the side bars open or close
+on('rightbar', () => canvas.invalidate('grid', 'transform'));
 
 // --- drag & drop ---------------------------------------------------------------------
 on('poi-drop', ({ id, world, snap }) => {
@@ -135,12 +119,6 @@ function nudge(dx, dy) {
     }
   });
   return true;
-}
-
-function toggleRightPanels() {
-  const anyOpen = panels.points.isOpen() || panels.inspector.isOpen();
-  panels.points[anyOpen ? 'close' : 'open']();
-  panels.inspector[anyOpen ? 'close' : 'open']();
 }
 
 document.addEventListener('keydown', (e) => {
@@ -196,10 +174,10 @@ document.addEventListener('keydown', (e) => {
     case '?': showHelp(); break;
     case '/':
       if (e.shiftKey) showHelp();
-      else { panels.points.open(); poiList.focusSearch(); }
+      else { rightbar.show('points'); poiList.focusSearch(); }
       break;
     case '[': panels.layers.toggle(); break;
-    case ']': toggleRightPanels(); break;
+    case ']': rightbar.toggle(); break;
     case 'F2': titlePill.rename(); break;
     case 'ArrowLeft': if (!nudge(-step, 0)) return; break;
     case 'ArrowRight': if (!nudge(step, 0)) return; break;
@@ -269,4 +247,4 @@ initSession().catch((e) => {
 });
 
 // Expose a tiny debugging handle (not an API).
-window.ilumap = { store, canvas, emit, panels };
+window.ilumap = { store, canvas, emit, panels, rightbar };

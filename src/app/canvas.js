@@ -101,7 +101,7 @@ export class Canvas {
   fitInsets() {
     const { w, h } = this.size();
     const big = w > 900 && h > 560;
-    return big ? { l: 72, r: 64, t: 64, b: 84 } : { l: 12, r: 12, t: 12, b: 12 };
+    return big ? { l: 72, r: 24, t: 64, b: 84 } : { l: 12, r: 12, t: 12, b: 12 };
   }
 
   fit() {
