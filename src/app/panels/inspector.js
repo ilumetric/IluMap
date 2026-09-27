@@ -1,5 +1,6 @@
 // Inspector for the current selection (POI, feature incl. walls, or multi-selection).
 
+import { deleteItems } from '../actions.js';
 import { store, on, change, select, emit, selectedItems } from '../state.js';
 import { POI_STATUSES, LAYER_KIND, LAYERS, TOWER_MODES, DEFAULT_WALL } from '../../core/schema.js';
 import { resolveStyle, typeGroupForLayer, poiStyle } from '../../core/styles.js';
@@ -139,7 +140,7 @@ export function mountInspector(root, { canvas, mapSettings }) {
           }
         }),
       }, icon('redo'), t('inspector.reverse')) : null,
-      h('button', { class: 'btn btn-small btn-danger', onclick: () => change((doc) => removeById(doc, hit.item.id)) }, icon('trash'), t('inspector.delete')));
+      h('button', { class: 'btn btn-small btn-danger', onclick: () => deleteItems([hit.item.id]) }, icon('trash'), t('inspector.delete')));
   }
 
   function renderNone() {
@@ -163,7 +164,7 @@ export function mountInspector(root, { canvas, mapSettings }) {
         h('button', { class: 'icon-btn', title: t('inspector.unselect'), 'aria-label': t('inspector.unselect'), onclick: () => select(id, { toggle: true }) }, '×')));
     }
     body.append(ul, h('div', { class: 'insp-actions' },
-      h('button', { class: 'btn btn-small btn-danger', onclick: () => change((doc) => { for (const { id } of items) removeById(doc, id); }) }, icon('trash'), t('inspector.deleteN', { n: items.length }))));
+      h('button', { class: 'btn btn-small btn-danger', onclick: () => deleteItems(items.map((x) => x.id)) }, icon('trash'), t('inspector.deleteN', { n: items.length }))));
   }
 
   function renderPoi(hit) {

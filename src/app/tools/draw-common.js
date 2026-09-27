@@ -91,7 +91,11 @@ export function createDrawTool({ id, labelKey, hintKey = null, key, icon, kind, 
       hover = ctx.snap ? ctx.canvas.snap(ctx.world) : ctx.world;
       if (pts.length) { ctx.canvas.invalidate('tool'); emit('hud'); }
     },
-    contextmenu(ctx) { if (pts.length) finish(ctx.canvas); },
+    contextmenu(ctx) {
+      if (!pts.length) return false;
+      finish(ctx.canvas);
+      return true;
+    },
     /** Ctrl+Z while drawing: remove the last placed point (like Backspace). */
     onUndo(canvas) {
       if (!pts.length) return false;

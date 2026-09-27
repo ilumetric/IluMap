@@ -518,7 +518,14 @@ export class Canvas {
       const clicks = same ? L.count + 1 : 1;
       this.lastDown = { t: now, x: e.clientX, y: e.clientY, count: clicks, button: e.button };
       const ctx = this.makeCtx(e, { hit: this.hitFromTarget(e.target), clicks });
-      if (e.button === 2) { tool?.contextmenu?.(ctx); return; }
+      if (e.button === 2) {
+        if (tool?.contextmenu?.(ctx)) return; // e.g. finish the line being drawn
+        // the object under the pointer, whatever the tool picks (a right-click is deliberate)
+        const el = e.target?.closest?.('#cv-content [data-id]');
+        const layer = el && (el.dataset.kind === 'poi' ? 'pois' : el.dataset.layer);
+        if (el && !isLayerLocked(layer)) emit('object-menu', { id: el.dataset.id, x: e.clientX, y: e.clientY });
+        return;
+      }
       if (e.button !== 0) return;
       try { svg.setPointerCapture(e.pointerId); } catch { /* synthetic or already released pointer */ }
       this.dragging = true;

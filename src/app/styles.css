@@ -711,6 +711,16 @@ input[type="color"].swatch { width: 16px; height: 16px; margin: 0 5px; }
 .feature-list .fname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .feature-list .fid { color: var(--text-muted); font-size: 10.5px; white-space: nowrap; }
 .feature-list li.empty { cursor: default; }
+/* trash on list rows (Layers, Points): shown on hover / keyboard focus, always on touch */
+.row-del { width: 24px; height: 24px; margin-left: auto; flex: 0 0 auto; border-radius: 6px; opacity: 0; color: var(--text-muted); }
+.row-del svg { width: 14px; height: 14px; }
+.feature-list li:hover .row-del, .poi-row:hover .row-del, .row-del:focus-visible { opacity: 1; }
+.row-del:hover { color: var(--accent-red); background: color-mix(in srgb, var(--accent-red) 14%, transparent); }
+@media (hover: none) { .row-del { opacity: 0.7; } }
+.feature-list li { align-items: center; }
+.feature-list .fid { margin-left: auto; }
+.feature-list .row-del { width: 20px; height: 20px; margin: -2px -4px -2px 0; }
+.feature-list .row-del svg { width: 13px; height: 13px; }
 
 /* ---------- points panel ---------- */
 .poi-tools { display: flex; flex-direction: column; gap: 6px; margin-bottom: 6px; position: sticky; top: -8px; padding-top: 0; background: var(--surface); z-index: 1; }

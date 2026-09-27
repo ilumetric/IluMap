@@ -289,7 +289,7 @@ together with `masks.json` (Chrome / Edge).
 | `C` · `Backspace` · `Esc` | Close path · remove last point · cancel |
 | `Shift` | Invert grid snapping (magnet toggle, bottom right) while drawing / dragging a POI |
 | `Alt`+click segment · double-click vertex | Insert · delete a vertex |
-| `Delete` · arrows | Delete · nudge the selection |
+| `Delete` · arrows | Delete · nudge the selection (Edit tool: the selected points). Also: right-click an object on the map, in Layers or in Points → Delete; the trash icon on list rows; Delete in the Inspector. Every deletion is one undo step, and the notice has an Undo button |
 | `Ctrl+Z` / `Ctrl+Y` (`Ctrl+Shift+Z`) | Undo / redo (while drawing: remove the last point). Shortcuts work on any keyboard layout (Ctrl+Я = Ctrl+Z) and also while a panel field has focus with nothing typed in it |
 | `Ctrl+S` / `Ctrl+Shift+S` / `Ctrl+O` | Save to map.json / save as / open a map.json as a local map |
 | `Ctrl+B` · `Ctrl+K` · `Ctrl+,` | Show / hide the sidebar · search local maps · settings (language, theme) |

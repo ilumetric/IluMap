@@ -1,7 +1,8 @@
 // POI list: search, filters (status / type / zone), "Unplaced" section,
 // click to select & center, drag a row onto the map to place it, + to add.
 
-import { store, on, change, select, emit, savePrefs } from '../state.js';
+import { store, on, change, select, emit, savePrefs, isLayerLocked } from '../state.js';
+import { deleteItems } from '../actions.js';
 import { POI_STATUSES } from '../../core/schema.js';
 import { resolveStyle, poiStyle, STATUS_COLORS } from '../../core/styles.js';
 import { nextId, zoneOf } from '../../core/model.js';
@@ -80,13 +81,19 @@ export function mountPoiList(root, { canvas, onCount = () => {} }) {
         row.classList.add('dragging');
       },
       ondragend: () => row.classList.remove('dragging'),
+      oncontextmenu: (e) => { e.preventDefault(); emit('object-menu', { id: p.id, x: e.clientX, y: e.clientY }); },
     },
     h('span', { class: 'grip' }, icon('grip')),
     poiIcon(p, rs),
     h('span', { class: 'poi-main' },
       h('span', { class: 'poi-name' }, p.name),
       h('span', { class: 'poi-sub' }, p.id, zid ? ` · ${zones.get(zid) || zid}` : '')),
-    h('span', { class: `badge status-${p.status || 'idea'}` }, label('status', p.status || 'idea')));
+    h('span', { class: `badge status-${p.status || 'idea'}` }, label('status', p.status || 'idea')),
+    isLayerLocked('pois') ? null : h('button', {
+      type: 'button', class: 'icon-btn row-del', title: t('menu.delete'), 'aria-label': t('menu.deleteNamed', { name: p.name || p.id }),
+      draggable: 'false',
+      onclick: (e) => { e.stopPropagation(); deleteItems([p.id]); },
+    }, icon('trash')));
     return row;
   }
 

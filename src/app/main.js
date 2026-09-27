@@ -3,10 +3,11 @@
 
 import {
   store, on, emit, undo, redo, change, select, clearSelection, setTool, selectedItems, isLayerLocked, isLayerVisible,
-  isChanging, clearVertices, parseVkey, selectVertices, vkey,
+  isChanging, clearVertices, selectVertices, vkey,
 } from './state.js';
 import { Canvas } from './canvas.js';
 import { TOOLS } from './tools/index.js';
+import { deleteSelection, openObjectMenu, setActionCanvas } from './actions.js';
 import { selectedPoints, movePoints, updateZones, editableFeatures } from './tools/select.js';
 import { save, saveAs, placePoi } from './io.js';
 import { mountLayers } from './panels/layers.js';
@@ -15,7 +16,7 @@ import { mountInspector } from './panels/inspector.js';
 import { mountMapSettings } from './panels/map.js';
 import { mountStyle } from './panels/style.js';
 import { mountTerrain } from './panels/terrain.js';
-import { removeById, removeVertex, findById, zoneOf } from '../core/model.js';
+import { zoneOf } from '../core/model.js';
 import { $, h, isTyping, isTextField, shortcutKey, openDialog, toast } from './dom.js';
 import { createPanel, clampFloatingPanels } from './ui/floating-panel.js';
 import { mountSidebar } from './ui/sidebar.js';
@@ -32,7 +33,7 @@ import { closeMenu, isMenuOpen } from './ui/menu.js';
 import { applyTheme, openSettings } from './settings.js';
 import { initSession, openFileCommand, handleDroppedFiles, hasUnpersistedChanges } from './session.js';
 import { persistent } from './projects.js';
-import { t, plural, applyI18n } from './i18n/index.js';
+import { t, applyI18n } from './i18n/index.js';
 
 applyTheme();
 applyI18n(document);
@@ -40,6 +41,9 @@ autoEnhanceSelects(); // every <select> gets the app's own dropdown (ui/select.j
 installColorPicker(); // every <input type="color"> opens the colour-wheel picker (ui/color-picker.js)
 
 const canvas = new Canvas($('#stage'), { getTool: () => TOOLS[store.tool] });
+setActionCanvas(canvas);
+// right-click on an object (map, Layers, Points): the object menu (Delete, Center, …)
+on('object-menu', ({ id, x, y }) => openObjectMenu(id, { x, y }));
 
 // --- panels ----------------------------------------------------------------------
 // Layers is a floating panel; POIs, Inspector and Style live in the docked right sidebar.
@@ -72,43 +76,6 @@ function activateTool(id) {
   emit('hud');
 }
 on('set-tool', activateTool);
-
-function deleteSelection() {
-  if (store.vsel.size) { deleteVertices(); return; }
-  const items = selectedItems().filter(({ hit }) => !isLayerLocked(hit.kind === 'poi' ? 'pois' : hit.layer));
-  if (!items.length) return;
-  change((doc) => { for (const { id } of items) removeById(doc, id); });
-  toast(plural('toast.deleted', items.length), { timeout: 2500 });
-}
-
-/**
- * Edit tool: Delete removes the selected points. A feature whose points are
- * all selected is removed as a whole; selected POIs are removed too.
- */
-function deleteVertices() {
-  const byFeature = new Map();
-  for (const k of store.vsel) {
-    const [id, i] = parseVkey(k);
-    if (!byFeature.has(id)) byFeature.set(id, []);
-    byFeature.get(id).push(i);
-  }
-  let blocked = null;
-  change((doc) => {
-    for (const [id, idx] of byFeature) {
-      const hit = findById(doc, id);
-      if (!hit || hit.kind !== 'feature' || isLayerLocked(hit.layer)) continue;
-      if (idx.length >= hit.item.points.length) { removeById(doc, id); continue; }
-      for (const i of idx.sort((a, b) => b - a)) {
-        if (!removeVertex(hit.item, i)) { blocked = hit.item; break; }
-      }
-    }
-    if (!isLayerLocked('pois')) {
-      for (const id of [...store.selection]) if (findById(doc, id)?.kind === 'poi') removeById(doc, id);
-    }
-  });
-  clearVertices();
-  if (blocked) toast(t(blocked.kind === 'polygon' ? 'toast.polygonMinPoints' : 'toast.lineMinPoints'), { type: 'warn' });
-}
 
 // Undo / redo: a short notice names the step (one notice at a time, so holding Ctrl+Z does not pile them up)
 let historyNotice = null;

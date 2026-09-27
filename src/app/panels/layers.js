@@ -1,11 +1,12 @@
 // Layers panel: visibility, lock, colour swatch, opacity, active layer, feature list.
 
-import { store, on, emit, change, select, setActiveLayer, layerPrefs, savePrefs, PSEUDO_LAYERS } from '../state.js';
+import { store, on, emit, change, select, setActiveLayer, layerPrefs, savePrefs, PSEUDO_LAYERS, isLayerLocked } from '../state.js';
 import { LAYER_KIND, DRAW_ORDER } from '../../core/schema.js';
 import { resolveStyle } from '../../core/styles.js';
 import { centroid } from '../../core/geometry.js';
 import { h, clear, renderKeepingFocus } from '../dom.js';
 import { icon } from '../ui/icons.js';
+import { deleteItems } from '../actions.js';
 import { layerLabel } from '../ui/layer-meta.js';
 import { t, onLangChange } from '../i18n/index.js';
 
@@ -96,7 +97,12 @@ export function mountLayers(root, { canvas }) {
                 canvas.centerOn(pt);
               }
             },
-          }, h('span', { class: 'fname' }, f.name || f.id), h('span', { class: 'fid' }, f.name ? f.id : (f.type || ''))));
+            oncontextmenu: (e) => { e.preventDefault(); emit('object-menu', { id: f.id, x: e.clientX, y: e.clientY }); },
+          }, h('span', { class: 'fname' }, f.name || f.id), h('span', { class: 'fid' }, f.name ? f.id : (f.type || '')),
+          isLayerLocked(layer) ? null : h('button', {
+            type: 'button', class: 'icon-btn row-del', title: t('menu.delete'), 'aria-label': t('menu.deleteNamed', { name: f.name || f.id }),
+            onclick: (e) => { e.stopPropagation(); deleteItems([f.id]); },
+          }, icon('trash'))));
         }
         if (!store.doc.layers[layer].length) list.append(h('li', { class: 'muted empty' }, t('panels.layers.empty')));
         extra.append(list);
