@@ -277,7 +277,7 @@ together with `masks.json` (Chrome / Edge).
 
 | Key | Action |
 |---|---|
-| `V` | Edit points: click an object to show its vertices, click / Shift+click / drag a box to select vertices and POIs, drag them to move; arrows nudge, `Delete` removes them (all points of a feature selected = the feature) |
+| `V` | Edit points of the objects selected in Layers / Points (clicks on the map never select another object, so a missed vertex does not pick the layer underneath): click / Shift+click / drag a box to select vertices, drag to move, `Ctrl+A` all points, arrows nudge, `Delete` removes (all points of a feature = the feature) |
 | `S` | Move / scale whole objects: drag inside the box to move, handles to scale (corners keep proportions, `Ctrl` free, `Alt` from the centre, `Esc` cancels) |
 | `H`, hold `Space`, middle mouse | Pan |
 | Wheel · `F` · `+` / `-` | Zoom to cursor · fit · zoom |
@@ -290,7 +290,7 @@ together with `masks.json` (Chrome / Edge).
 | `Shift` | Invert grid snapping (magnet toggle, bottom right) while drawing / dragging a POI |
 | `Alt`+click segment · double-click vertex | Insert · delete a vertex |
 | `Delete` · arrows | Delete · nudge the selection |
-| `Ctrl+Z` / `Ctrl+Y` (`Ctrl+Shift+Z`) | Undo / redo (while drawing: remove the last point) |
+| `Ctrl+Z` / `Ctrl+Y` (`Ctrl+Shift+Z`) | Undo / redo (while drawing: remove the last point). Shortcuts work on any keyboard layout (Ctrl+Я = Ctrl+Z) and also while a panel field has focus with nothing typed in it |
 | `Ctrl+S` / `Ctrl+Shift+S` / `Ctrl+O` | Save to map.json / save as / open a map.json as a local map |
 | `Ctrl+B` · `Ctrl+K` · `Ctrl+,` | Show / hide the sidebar · search local maps · settings (language, theme) |
 | `G` · `/` · `?` · `F2` | Grid · search POIs · help · rename the map |

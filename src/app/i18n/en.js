@@ -433,6 +433,11 @@ export default {
 
   // --- tools ------------------------------------------------------------------------------------
   'tools.select': 'Edit points',
+  'tools.editNothing': 'Nothing to edit — pick an object in Layers or Points (or with Move / scale, S)',
+  'tools.editScope': 'Editing {what}',
+  'tools.editScopePoints': 'Editing {what} · {points} points selected',
+  'tools.editNamed': '“{name}”',
+  'tools.editCount': '{n} objects',
   'tools.scale': 'Move / scale',
   'tools.scaleHint': 'Drag inside the box to move · drag a handle to scale (corners keep proportions, Ctrl: free, Alt: from the centre) · Shift toggles snapping · Esc cancels · drag on empty space to box-select objects',
   'tools.scaleStatus': 'Scale {sx} × {sy}',
@@ -444,7 +449,7 @@ export default {
   'tools.poi': 'POI',
   'tools.measure': 'Measure',
   'tools.calibrate': 'Calibrate background',
-  'tools.selectHint': 'Click an object to show its points · click / Shift+click a point to select · drag selected points (and POIs) to move them · drag elsewhere to box-select points · Alt+click segment adds a point · double-click a point deletes it · arrows nudge · Delete removes',
+  'tools.selectHint': 'Edits the points of the objects selected in Layers / Points (clicks here never select another object) · click / Shift+click a point · drag selected points to move · drag a box to select points · Alt+click segment adds a point · double-click deletes · Ctrl+A all points · arrows nudge · Delete removes',
   'tools.panHint': 'Drag to pan · wheel to zoom · hold Space or use the middle button in any tool',
   'tools.poiHint': 'Click to place a new “{type}” POI · Shift toggles grid snapping · drag POIs from the list onto the map',
   'tools.drawLineHint': 'Drawing into “{layer}”. Click to add points · Enter or double-click to finish · C to close · Backspace or Ctrl+Z removes the last point · Shift toggles snapping · Esc cancels',

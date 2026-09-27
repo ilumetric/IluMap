@@ -3,11 +3,11 @@
 
 import {
   store, on, emit, undo, redo, change, select, clearSelection, setTool, selectedItems, isLayerLocked, isLayerVisible,
-  isChanging, clearVertices, parseVkey,
+  isChanging, clearVertices, parseVkey, selectVertices, vkey,
 } from './state.js';
 import { Canvas } from './canvas.js';
 import { TOOLS } from './tools/index.js';
-import { selectedPoints, movePoints, updateZones } from './tools/select.js';
+import { selectedPoints, movePoints, updateZones, editableFeatures } from './tools/select.js';
 import { save, saveAs, placePoi } from './io.js';
 import { mountLayers } from './panels/layers.js';
 import { mountPoiList } from './panels/poi-list.js';
@@ -16,7 +16,7 @@ import { mountMapSettings } from './panels/map.js';
 import { mountStyle } from './panels/style.js';
 import { mountTerrain } from './panels/terrain.js';
 import { removeById, removeVertex, findById, zoneOf } from '../core/model.js';
-import { $, h, isTyping, openDialog, toast } from './dom.js';
+import { $, h, isTyping, isTextField, shortcutKey, openDialog, toast } from './dom.js';
 import { createPanel, clampFloatingPanels } from './ui/floating-panel.js';
 import { mountSidebar } from './ui/sidebar.js';
 import { mountToolbar } from './ui/toolbar.js';
@@ -185,17 +185,25 @@ function nudge(dx, dy) {
   return true;
 }
 
+// A text field with typing that is not committed yet keeps the browser's own Ctrl+Z;
+// otherwise (nothing typed, or a checkbox / select / slider) Ctrl+Z / Ctrl+Y undo the map.
+let typedField = null;
+document.addEventListener('focusin', () => { typedField = null; });
+document.addEventListener('input', (e) => { if (isTextField(e.target)) typedField = e.target; });
+document.addEventListener('change', () => { typedField = null; });
+
 document.addEventListener('keydown', (e) => {
   if ($('#dialogs').children.length) return;
   const mod = e.ctrlKey || e.metaKey;
-  const k = e.key.toLowerCase();
+  const k = shortcutKey(e); // same on every keyboard layout (Ctrl+Я = Ctrl+Z)
   if (mod && k === 's') { e.preventDefault(); if (e.shiftKey) saveAs(); else save(); return; }
   if (mod && k === 'o') { e.preventDefault(); openFileCommand(); return; }
   if (mod && k === 'b') { e.preventDefault(); sidebar.toggle(); return; }
   if (mod && k === 'k') { e.preventDefault(); sidebar.focusSearch(); return; }
   if (mod && e.key === ',') { e.preventDefault(); openSettings(); return; }
   if (isMenuOpen()) return; // the menu handles its own keys
-  if (isTyping(e.target)) {
+  const history = mod && !e.altKey && (k === 'z' || k === 'y');
+  if (isTyping(e.target) && !(history && typedField !== e.target)) {
     if (e.key === 'Escape') e.target.blur();
     return;
   }
@@ -203,6 +211,11 @@ document.addEventListener('keydown', (e) => {
   if (mod && k === 'y') { e.preventDefault(); redoCmd(); return; }
   if (mod && k === 'a') {
     e.preventDefault();
+    // Edit tool: all points of the objects being edited; other tools: all objects of the active layer
+    if (store.tool === 'select' && editableFeatures().length) {
+      selectVertices(editableFeatures().flatMap((f) => f.points.map((_, i) => vkey(f.id, i))));
+      return;
+    }
     const l = store.activeLayer;
     if (!isLayerLocked(l)) select(store.doc.layers[l].filter((f) => !f.hidden).map((f) => f.id));
     return;
@@ -220,7 +233,7 @@ document.addEventListener('keydown', (e) => {
   if (KEY_TOOLS[k] && !e.shiftKey) { activateTool(KEY_TOOLS[k]); e.preventDefault(); return; }
   const step = (store.doc.view.grid?.step || 1000) / (e.shiftKey ? 1 : 10);
   const flip = store.doc.meta.flipY ? -1 : 1;
-  switch (e.key) {
+  switch (e.key.length === 1 ? k : e.key) {
     case 'Escape':
       if (store.tool !== 'select') activateTool('select');
       else if (store.vsel.size) clearVertices(); // points first, then the objects
@@ -230,11 +243,11 @@ document.addEventListener('keydown', (e) => {
     case 'Backspace':
       deleteSelection();
       break;
-    case 'g': case 'G':
+    case 'g':
       change((d) => { d.view.grid.visible = !(d.view.grid.visible !== false); });
       break;
-    case 'f': case 'F': canvas.fit(); break;
-    case 't': case 'T': emit('toggle-terrain'); break;
+    case 'f': canvas.fit(); break;
+    case 't': emit('toggle-terrain'); break;
     case '+': case '=': canvas.zoomBy(1.4); break;
     case '-': case '_': canvas.zoomBy(1 / 1.4); break;
     case '?': showHelp(); break;

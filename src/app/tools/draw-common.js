@@ -11,7 +11,7 @@ import { toView } from '../../core/render-svg.js';
 import { linearPath, catmullRomToPath, polylineLength, polygonArea } from '../../core/geometry.js';
 import { t, plural } from '../i18n/index.js';
 import { fmtLength, fmtArea } from '../i18n/format.js';
-import { toast } from '../dom.js';
+import { toast, shortcutKey } from '../dom.js';
 import { newTypeFor, layerLabel } from '../ui/layer-meta.js';
 
 /** Pick the layer a tool draws into, switching the active layer when needed. */
@@ -102,7 +102,7 @@ export function createDrawTool({ id, labelKey, hintKey = null, key, icon, kind, 
     },
     onKey(e, canvas) {
       if (e.key === 'Enter') { finish(canvas); return true; }
-      if ((e.key === 'c' || e.key === 'C') && pts.length) { finish(canvas, { close: true }); return true; }
+      if (shortcutKey(e) === 'c' && pts.length) { finish(canvas, { close: true }); return true; }
       if (e.key === 'Backspace' && pts.length) { pts.pop(); canvas.invalidate('tool'); emit('hud'); return true; }
       if (e.key === 'Escape' && pts.length) { pts = []; hover = null; canvas.invalidate('tool'); emit('hud'); return true; }
       return false;

@@ -34,6 +34,39 @@ export function clear(el) {
   return el;
 }
 
+// Punctuation by physical key, for layouts whose characters are not Latin (Russian: "х" is on "[").
+const CODE_CHARS = {
+  BracketLeft: '[', BracketRight: ']', Slash: '/', Backslash: '\\', Minus: '-', Equal: '=', Comma: ',', Period: '.',
+  Semicolon: ';', Quote: "'", Backquote: '`',
+};
+const SHIFTED = { '/': '?', '=': '+', '-': '_', ',': '<', '.': '>', ';': ':', "'": '"', '`': '~' };
+
+/**
+ * The key of a shortcut, the same on every keyboard layout: Latin characters
+ * as typed (lower case), non-Latin ones (e.g. Russian) by the physical key
+ * they are on (Ctrl+Я → "z"), named keys lower-cased ("escape", "arrowleft").
+ */
+export function shortcutKey(e) {
+  const k = e.key || '';
+  if (k.length === 1 && k >= ' ' && k <= '~') return k.toLowerCase();
+  if (k.length === 1) {
+    const c = e.code || '';
+    if (c.startsWith('Key')) return c.slice(3).toLowerCase();
+    if (c.startsWith('Digit')) return c.slice(5);
+    const ch = CODE_CHARS[c];
+    if (ch) return e.shiftKey ? (SHIFTED[ch] || ch) : ch;
+    return k.toLowerCase();
+  }
+  return k.toLowerCase();
+}
+
+/** A text field (typing goes into it), as opposed to checkboxes, sliders, selects. */
+export function isTextField(el) {
+  if (!el) return false;
+  if (el.isContentEditable || el.tagName === 'TEXTAREA') return true;
+  return el.tagName === 'INPUT' && !['checkbox', 'radio', 'range', 'color', 'button', 'submit', 'file'].includes(el.type);
+}
+
 export function isTyping(target = document.activeElement) {
   if (!target) return false;
   const tag = target.tagName;

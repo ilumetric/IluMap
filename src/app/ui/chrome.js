@@ -338,6 +338,7 @@ export function mountHud({ tools }) {
   on('tool', update);
   on('layers', update);
   on('new-type', update);
+  on('selection', update); // the Edit tool names what it edits
   onLangChange(update);
   let raf = 0;
   on('cursor', () => {

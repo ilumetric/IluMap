@@ -1,23 +1,34 @@
-// Edit tool (V): works with points only — the vertices of lines and polygons
-// and POIs. Whole objects are moved and scaled with the Transform tool (S).
-//   click an object: select it (Shift toggles), its vertices appear;
+// Edit tool (V): works with points only — the vertices of the objects that
+// are selected and selected POIs. Clicks on the map never change which
+// objects are selected (a missed vertex does not pick the island underneath):
+// objects are chosen in the Layers panel, the Points list or with the
+// Move / scale tool (S). See `picks` on the tools and Canvas.hitFromTarget.
 //   click a vertex: select it (Shift toggles); drag a selected point: move all
 //   selected points (vertices and POIs) — snapping follows the snap toggle,
-//   Shift inverts it; drag anywhere else: box-select the vertices and POIs
-//   inside; Alt+click a selected feature's segment inserts a vertex;
-//   double-click a vertex deletes it.
+//   Shift inverts it; drag anywhere else: box-select vertices of the selected
+//   objects; Alt+click a selected feature's segment inserts a vertex;
+//   double-click a vertex deletes it; Ctrl+A selects all their vertices.
 
 import {
-  store, select, clearSelection, beginChange, endChange, liveUpdate, change, isLayerLocked, isLayerVisible,
-  selectVertices, vkey, parseVkey,
+  store, beginChange, endChange, liveUpdate, change, isLayerLocked, isLayerVisible, selectVertices, vkey, parseVkey,
 } from '../state.js';
-import { findById, insertVertex, removeVertex, zoneOf, features } from '../../core/model.js';
+import { findById, insertVertex, removeVertex, zoneOf } from '../../core/model.js';
 import { nearestPointOnPolyline } from '../../core/geometry.js';
 import { toView } from '../../core/render-svg.js';
 import { toast } from '../dom.js';
 import { t } from '../i18n/index.js';
 
 let drag = null;
+
+/** Selected features whose points can be edited (visible, unlocked layers). */
+export function editableFeatures() {
+  const out = [];
+  for (const id of store.selection) {
+    const hit = findById(store.doc, id);
+    if (hit?.kind === 'feature' && !hit.item.hidden && isLayerVisible(hit.layer) && !isLayerLocked(hit.layer)) out.push(hit.item);
+  }
+  return out;
+}
 
 /** The selected points that can move: selected vertices and selected POIs, with their start positions. */
 export function selectedPoints() {
@@ -66,6 +77,9 @@ export default {
   key: 'V',
   icon: 'edit',
   hint: () => t('tools.selectHint'),
+  // what a click on the map can select: 'objects' (any visible, unlocked object), 'points' (only
+  // vertices / POIs of the objects already selected in Layers or Points), 'none' (default)
+  picks: 'points',
 
   down(ctx) {
     const { hit } = ctx;
@@ -89,9 +103,7 @@ export default {
       return;
     }
     if (hit?.type === 'poi') {
-      if (ctx.shift) select(hit.id, { toggle: true });
-      else if (!store.selection.has(hit.id)) select(hit.id);
-      if (!store.selection.has(hit.id)) return;
+      // only selected POIs reach here (Canvas.hitFromTarget): drag it with the other selected points
       const p = findById(doc, hit.id).item;
       drag = pointsDrag(ctx, [p.x, p.y]);
       return;
@@ -110,10 +122,9 @@ export default {
         drag = { ...pointsDrag(ctx, f.points[at]), open: true };
         return;
       }
-      // clicking an object selects it; its body does not move (a drag box-selects points instead)
-      if (ctx.shift) select(hit.id, { toggle: true });
-      else { select(hit.id); selectVertices([]); }
-    } else if (!ctx.shift) clearSelection();
+    }
+    // anything else (a selected object's body, empty space, other objects): box-select points
+    if (!ctx.shift) selectVertices([]);
     drag = { type: 'box', start: ctx.screen, startView: ctx.view, cur: ctx.view, moved: false, add: ctx.shift };
   },
 
@@ -152,26 +163,26 @@ export default {
     }
     ctx.canvas.invalidate('tool');
     if (!d.moved) return;
-    // box: the vertices and POIs inside (their features become selected)
+    // box: the vertices of the selected objects inside (the object selection stays as it is)
     const x0 = Math.min(d.startView[0], d.cur[0]); const x1 = Math.max(d.startView[0], d.cur[0]);
     const y0 = Math.min(d.startView[1], d.cur[1]); const y1 = Math.max(d.startView[1], d.cur[1]);
     const inside = (p) => {
       const [vx, vy] = toView(store.doc, p);
       return vx >= x0 && vx <= x1 && vy >= y0 && vy <= y1;
     };
-    const ids = [];
     const keys = [];
-    if (isLayerVisible('pois') && !isLayerLocked('pois')) {
-      for (const p of store.doc.pois) if (p.placed !== false && inside([p.x, p.y])) ids.push(p.id);
-    }
-    for (const { layer, feature } of features(store.doc)) {
-      if (feature.hidden || !isLayerVisible(layer) || isLayerLocked(layer)) continue;
-      let any = false;
-      feature.points.forEach((p, i) => { if (inside(p)) { keys.push(vkey(feature.id, i)); any = true; } });
-      if (any) ids.push(feature.id);
-    }
-    select(ids, { add: d.add });
+    for (const f of editableFeatures()) f.points.forEach((p, i) => { if (inside(p)) keys.push(vkey(f.id, i)); });
     selectVertices(keys, { add: d.add });
+  },
+
+  status() {
+    const feats = editableFeatures();
+    const pois = [...store.selection].filter((id) => findById(store.doc, id)?.kind === 'poi');
+    const n = feats.length + pois.length;
+    if (!n) return t('tools.editNothing');
+    const name = n === 1 ? (feats[0] || findById(store.doc, pois[0]).item) : null;
+    const what = name ? t('tools.editNamed', { name: name.name || name.id }) : t('tools.editCount', { n: String(n) });
+    return store.vsel.size ? t('tools.editScopePoints', { what, points: String(store.vsel.size) }) : t('tools.editScope', { what });
   },
 
   overlay(canvas) {

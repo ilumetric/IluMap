@@ -243,6 +243,14 @@ only colours map content.
   (switching projects keeps them while the content is unchanged), never
   written anywhere. Reloading the linked file from disk is itself an
   undoable step.
+  Picking: every tool declares `picks` — what a click on the map may select.
+  `'objects'` (Move / scale): any visible, unlocked object; `'points'` (Edit
+  points): only vertices / POIs of objects that are already selected (objects
+  are chosen in the Layers panel, the Points list or with Move / scale);
+  `'none'` (drawing, measure, pan): nothing. `Canvas.hitFromTarget` applies
+  it for all tools, and `#canvas[data-picks]` limits the hover highlight to
+  what a click would select. Shortcuts go through `shortcutKey(e)` (dom.js):
+  Latin keys as typed, other layouts by physical key.
 * `projects.js` — IndexedDB storage of local projects (below).
 * `session.js` — the workspace: which project is open, autosave, new / open /
   import / switch / rename / duplicate / delete, background blobs, first

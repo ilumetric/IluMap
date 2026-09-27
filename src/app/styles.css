@@ -823,9 +823,11 @@ input[type="color"].swatch { width: 16px; height: 16px; margin: 0 5px; }
 
 /* ---------- canvas overlays ---------- */
 #cv-content .ilm-feat, #cv-content .ilm-poi { cursor: pointer; }
-#cv-content .ilm-feat:hover, #cv-content .ilm-poi:hover { filter: brightness(1.35); }
+/* hover highlight only where a click would select the object (tools with picks = objects) */
+#canvas[data-picks="objects"] #cv-content .ilm-feat:hover, #canvas[data-picks="objects"] #cv-content .ilm-poi:hover { filter: brightness(1.35); }
 #cv-content .ilm-feat.is-selected, #cv-content .ilm-poi.is-selected { filter: brightness(1.2); }
-#cv-content #layer-zones .ilm-feat:hover { filter: brightness(1.15); }
+#canvas[data-picks="objects"] #cv-content #layer-zones .ilm-feat:hover { filter: brightness(1.15); }
+#canvas[data-picks="objects"] #cv-content .ilm-feat, #canvas[data-picks="objects"] #cv-content .ilm-poi { cursor: pointer; }
 /* Hand tool / Space / pan in progress: no hover highlight, the canvas cursor everywhere */
 #canvas.panning #cv-content .ilm-feat:hover, #canvas.panning #cv-content .ilm-poi:hover { filter: none; }
 #canvas.panning #cv-content .ilm-feat.is-selected, #canvas.panning #cv-content .ilm-poi.is-selected { filter: brightness(1.2); }

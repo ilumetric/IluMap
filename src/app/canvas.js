@@ -59,6 +59,7 @@ export class Canvas {
     on('selection', () => this.invalidate('content', 'overlay', 'tool'));
     on('layers', () => this.invalidate('content', 'overlay'));
     on('tool', () => { this.updateCursor(); this.invalidate('tool', 'overlay'); });
+    this.updateCursor(); // data-picks for the first tool
     on('background', () => this.invalidate('bg'));
     on('terrain-overlay', () => this.invalidate('grid'));
     onLangChange(() => this.invalidate('grid', 'tool')); // scale bar and tool overlays carry text
@@ -386,7 +387,11 @@ export class Canvas {
     el.querySelector('.lbl').textContent = fmtLength(nice * scale, meta);
   }
 
+  /** What a click on the map selects with the active tool: 'objects' | 'points' | 'none'. */
+  picks() { return this.getTool()?.picks || 'none'; }
+
   updateCursor() {
+    this.svg.dataset.picks = this.picks();
     const t = store.tool;
     let c = 'default';
     if (this.pan) c = 'grabbing';
@@ -411,6 +416,9 @@ export class Canvas {
     const kind = el.dataset.kind === 'poi' ? 'poi' : 'feature';
     const layer = kind === 'poi' ? 'pois' : el.dataset.layer;
     if (isLayerLocked(layer)) return null;
+    // one rule for every tool: only a tool that picks objects gets unselected objects under the pointer;
+    // the others see just what is already selected (Edit: no picking the layer underneath by a missed click)
+    if (this.picks() !== 'objects' && !store.selection.has(el.dataset.id)) return null;
     return { type: kind, id: el.dataset.id, layer };
   }
 

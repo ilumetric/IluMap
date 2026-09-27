@@ -147,6 +147,7 @@ export default {
   key: 'S',
   icon: 'scale',
   hint: () => t('tools.scaleHint'),
+  picks: 'objects', // clicks on the map select objects (see Edit tool)
 
   down(ctx) {
     const el = ctx.e?.target?.closest?.('[data-scale-handle]');
