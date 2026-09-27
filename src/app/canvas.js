@@ -48,7 +48,7 @@ export class Canvas {
     this.bindEvents();
     // keep the map fitted until the user pans or zooms (the first fit can happen before layout)
     this.autoFit = true;
-    new ResizeObserver(() => { if (this.autoFit) this.fit(); else this.invalidate('grid', 'transform'); }).observe(this.stage);
+    new ResizeObserver(() => { if (this.autoFit) this.fit(); else { this.invalidate('grid', 'transform'); this.scheduleContent(100); } }).observe(this.stage);
 
     on('doc', (d) => {
       // a new document, or flipping the y axis (also via undo), re-frames the view
@@ -131,7 +131,23 @@ export class Canvas {
     const k = Math.max(this.kFit / 50, Math.min(this.kFit * 5000, k0 * factor));
     const f = k / k0;
     this.view = { k, tx: sx - (sx - this.view.tx) * f, ty: sy - (sy - this.view.ty) * f };
-    this.invalidate('transform', 'content', 'overlay', 'grid', 'tool');
+    // the map content is re-built once the wheel settles (until then the old drawing is scaled)
+    this.invalidate('transform', 'overlay', 'grid', 'tool');
+    this.scheduleContent(120);
+  }
+
+  /** Re-render the map content after `delay` ms of quiet (zoom / pan in progress). */
+  scheduleContent(delay) {
+    clearTimeout(this.contentTimer);
+    this.contentTimer = setTimeout(() => { this.contentTimer = 0; this.invalidate('content'); }, delay);
+  }
+
+  /** The view-space rectangle the content is drawn for: the visible area plus half a screen on every side. */
+  contentRect() {
+    const r = this.visibleViewRect();
+    const mx = (r.x1 - r.x0) * 0.5;
+    const my = (r.y1 - r.y0) * 0.5;
+    return { x0: r.x0 - mx, y0: r.y0 - my, x1: r.x1 + mx, y1: r.y1 + my };
   }
 
   zoomBy(factor) {
@@ -144,6 +160,10 @@ export class Canvas {
     this.view.tx += dx;
     this.view.ty += dy;
     this.invalidate('transform', 'grid');
+    // content is drawn with a margin: re-draw only when the view leaves what was drawn
+    const v = this.visibleViewRect();
+    const c = this.drawnRect;
+    if (!c || v.x0 < c.x0 || v.y0 < c.y0 || v.x1 > c.x1 || v.y1 > c.y1) this.scheduleContent(60);
   }
 
   centerOn(world, { minZoom } = {}) {
@@ -184,11 +204,17 @@ export class Canvas {
 
   renderContent() {
     const doc = store.doc;
+    clearTimeout(this.contentTimer);
+    this.contentTimer = 0;
+    // only what is on screen (plus a margin) is drawn, so the cost does not grow with the zoom
+    const viewRect = this.contentRect();
+    this.drawnRect = viewRect;
     const parts = renderParts(doc, {
       unitsPerPx: this.unitsPerPx,
       layers: visibleLayers(),
       interactive: true,
       selection: store.selection,
+      viewRect,
     });
     this.style = parts.style;
     this.g.defs.innerHTML = parts.defs;

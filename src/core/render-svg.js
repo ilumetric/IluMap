@@ -10,6 +10,7 @@ import { resolveStyle, featureStyle, poiStyle, STATUS_COLORS } from './styles.js
 import {
   catmullRomToPath, linearPath, centroid, featureGeometry, wallLayout, cutGaps, atDistance, polylineLength, resample,
 } from './geometry.js';
+import { visiblePieces, piecesPath, pointsAlongPieces, drawnBox, boxesTouch } from './viewclip.js';
 
 /** Icon paths in a 24x24 box centred on 0,0. */
 export const ICONS = {
@@ -173,7 +174,9 @@ export function renderGrid(doc, rect, opts = {}) {
 /**
  * Render all map content (layers, POIs, labels) as SVG fragments.
  * opts: { unitsPerPx, layers?: string[] (visible layer names; 'pois' and 'labels' included),
- *         labels?: bool, interactive?: bool, selection?: Set<string> }
+ *         labels?: bool, interactive?: bool, selection?: Set<string>,
+ *         viewRect?: {x0, y0, x1, y1} (view space) — editor canvas only: features outside it are skipped and
+ *         lines are drawn only inside it, so the cost does not grow with the zoom (exports omit it) }
  * @returns {{defs: string, layers: Record<string,string>, pois: string, labels: string, body: string}}
  */
 export function renderParts(doc, opts = {}) {
@@ -224,6 +227,18 @@ export function renderParts(doc, opts = {}) {
     : '');
 
   const filled = doc.meta?.landMode === 'filled';
+  const clipRect = opts.viewRect || null;
+
+  // a dashed stroke: with a view rect one <path> per visible piece, with the dash phase of the whole line
+  const dashedStroke = (d, pieces, attrs, dash) => {
+    if (!pieces) return `<path d="${d}" ${attrs} stroke-dasharray="${dash}"/>`;
+    let out = '';
+    for (const p of pieces) {
+      const pd = piecesPath([p], r2);
+      if (pd) out += `<path d="${pd}" ${attrs} stroke-dasharray="${dash}" stroke-dashoffset="${r2(p.start)}"/>`;
+    }
+    return out;
+  };
 
   for (const layer of DRAW_ORDER) {
     if (!show(layer)) { layerOut[layer] = ''; continue; }
@@ -242,17 +257,26 @@ export function renderParts(doc, opts = {}) {
       const closed = polygon || f.closed === true;
       if (polygon && pts.length < 3) continue;
       const smooth = !!f.smooth && layer !== 'walls';
+      const box = clipRect ? drawnBox(pts, closed, smooth) : null;
+      if (clipRect && !boxesTouch(box, clipRect)) continue; // off screen
+      // entirely inside the drawn area: draw it as is (exact curves, fewer points)
+      const inside = box && box.x0 >= clipRect.x0 && box.y0 >= clipRect.y0 && box.x1 <= clipRect.x1 && box.y1 <= clipRect.y1;
       const d = pathFor(pts, closed, smooth);
       const sw = px(st.width);
+      // the on-screen part of lines and outlines (only on the editor canvas)
+      const clipLines = clipRect && !inside && layer !== 'walls' && layer !== 'bridges';
+      const pieces = clipLines ? visiblePieces(pts, closed, smooth, clipRect, { step: 3 * upp }) : null;
+      const dLine = pieces ? piecesPath(pieces, r2) : d;
       let g = groupOpen(layer, f);
       if (layer === 'land') {
-        if (filled) g += `<path d="${d}" fill="none" stroke="${st.stroke}" stroke-width="${sw}" stroke-dasharray="${px(6)} ${px(4)}" stroke-opacity="0.6"/>`;
+        if (filled) g += dashedStroke(d, pieces, `fill="none" stroke="${st.stroke}" stroke-width="${sw}" stroke-opacity="0.6"`, `${px(6)} ${px(4)}`);
         else g += `<path d="${d}" fill="${st.fill}" stroke="${st.stroke}" stroke-width="${sw}" stroke-linejoin="round"/>`;
       } else if (layer === 'water') {
         g += `<path d="${d}" fill="${st.fill}" stroke="${st.stroke}" stroke-width="${sw}" stroke-linejoin="round"/>`;
       } else if (layer === 'zones') {
         const op = st.opacity ?? 0.35;
-        g += `<path d="${d}" fill="${st.fill}" fill-opacity="${op}" stroke="${st.stroke}" stroke-width="${px(1.2)}" stroke-opacity="0.8" stroke-dasharray="${px(5)} ${px(3)}"/>`;
+        g += `<path d="${d}" fill="${st.fill}" fill-opacity="${op}" stroke="none"/>`;
+        g += dashedStroke(d, pieces, `fill="none" stroke="${st.stroke}" stroke-width="${px(1.2)}" stroke-opacity="0.8" pointer-events="none"`, `${px(5)} ${px(3)}`);
         if (st.pattern) g += `<path d="${d}" fill="url(#ilm-pat-${safeId(f.type)})" fill-opacity="${Math.min(1, op + 0.35)}" stroke="none" pointer-events="none"/>`;
       } else if (layer === 'walls') {
         g += renderWall(f, pts, st, upp, interactive);
@@ -261,23 +285,26 @@ export function renderParts(doc, opts = {}) {
         g += B.svg;
         if (showLabels && B.label) labels.push(labelText(B.label.x, B.label.y, B.label.text, { size: 9, italic: true, weight: 600, rotate: B.label.rotate }));
       } else if (layer === 'relief') {
-        const geo = smooth ? featureGeometry({ ...f, points: pts }) : pts;
-        g += hitPath(d, st.width * upp);
-        g += renderRelief(d, geo, closed, st, upp);
+        const geo = pieces ? null : smooth ? featureGeometry({ ...f, points: pts }) : pts;
+        g += hitPath(dLine, st.width * upp);
+        g += renderRelief(dLine, geo, closed, st, upp, pieces, dashedStroke);
       } else {
         const W = st.worldWidth ? Math.max(st.worldWidth, upp) : st.width * upp;
         const cap = layer === 'rails' ? 'butt' : 'round';
-        g += hitPath(d, W);
+        g += hitPath(dLine, W);
         if (layer === 'rails') {
           const tieW = st.worldWidth ? W * 2.6 : Math.max(W * 3, 7 * upp);
           const tieDash = st.worldWidth ? `${r2(W * 0.35)} ${r2(W * 1.6)}` : `${px(1.5)} ${px(5)}`;
-          g += `<path d="${d}" fill="none" stroke="${st.stroke}" stroke-width="${r2(tieW)}" stroke-dasharray="${tieDash}" stroke-linejoin="round"/>`;
+          g += dashedStroke(dLine, pieces, `fill="none" stroke="${st.stroke}" stroke-width="${r2(tieW)}" stroke-linejoin="round"`, tieDash);
         }
         if (layer === 'roads' && st.worldWidth == null && !st.dash) {
           // casing for readability
-          g += `<path d="${d}" fill="none" stroke="${rs.halo}" stroke-opacity="0.55" stroke-width="${r2(W + 2 * upp)}" stroke-linecap="round" stroke-linejoin="round"/>`;
+          g += `<path d="${dLine}" fill="none" stroke="${rs.halo}" stroke-opacity="0.55" stroke-width="${r2(W + 2 * upp)}" stroke-linecap="round" stroke-linejoin="round"/>`;
         }
-        g += `<path d="${d}" fill="none" stroke="${st.stroke}" stroke-width="${r2(W)}" stroke-linecap="${cap}" stroke-linejoin="round"${dashAttr(st.dash, st.worldWidth ? W / st.width : upp)}/>`;
+        const dash = dashAttr(st.dash, st.worldWidth ? W / st.width : upp);
+        const lineAttrs = `fill="none" stroke="${st.stroke}" stroke-width="${r2(W)}" stroke-linecap="${cap}" stroke-linejoin="round"`;
+        if (dash) g += dashedStroke(dLine, pieces, lineAttrs, dash.replace(/^ stroke-dasharray="|"$/g, ''));
+        else g += `<path d="${dLine}" ${lineAttrs}/>`;
       }
       g += '</g>';
       s += g;
@@ -349,14 +376,15 @@ export function renderParts(doc, opts = {}) {
  * teeth on the left of the drawing direction (the downhill side — reverse the
  * line to flip them).
  */
-function renderRelief(d, geo, closed, st, upp) {
+function renderRelief(d, geo, closed, st, upp, pieces = null, dashedStroke = null) {
   const W = st.width * upp;
   const c = st.stroke;
   const pattern = st.pattern || 'ridge';
+  const dashed = (attrs, dash) => (dashedStroke ? dashedStroke(d, pieces, attrs, dash) : `<path d="${d}" ${attrs} stroke-dasharray="${dash}"/>`);
   let s = '';
   if (pattern === 'fault') {
-    s += `<path d="${d}" fill="none" stroke="${c}" stroke-width="${r2(W * 5.5)}" stroke-dasharray="${r2(1.3 * upp)} ${r2(13 * upp)}"/>`;
-    s += `<path d="${d}" fill="none" stroke="${c}" stroke-width="${r2(W * 1.3)}" stroke-linecap="round" stroke-dasharray="${r2(9 * upp)} ${r2(3 * upp)} ${r2(1.5 * upp)} ${r2(3 * upp)}"/>`;
+    s += dashed(`fill="none" stroke="${c}" stroke-width="${r2(W * 5.5)}"`, `${r2(1.3 * upp)} ${r2(13 * upp)}`);
+    s += dashed(`fill="none" stroke="${c}" stroke-width="${r2(W * 1.3)}" stroke-linecap="round"`, `${r2(9 * upp)} ${r2(3 * upp)} ${r2(1.5 * upp)} ${r2(3 * upp)}`);
     return s;
   }
   if (pattern === 'cliff') {
@@ -364,15 +392,20 @@ function renderRelief(d, geo, closed, st, upp) {
     const step = 7 * upp;
     const half = 2.2 * upp;
     const depth = 4.5 * upp;
-    const samples = resample(geo, step, closed);
+    // teeth every `step`: along the visible pieces (editor) or the whole line (exports)
+    let marks;
+    if (pieces) marks = pointsAlongPieces(pieces, step);
+    else {
+      const samples = resample(geo, step, closed);
+      marks = [];
+      for (let i = 0; i + 1 < samples.length; i++) {
+        const [x0, y0] = samples[i]; const [x1, y1] = samples[i + 1];
+        const len = Math.hypot(x1 - x0, y1 - y0);
+        if (len >= 1e-9) marks.push({ point: [(x0 + x1) / 2, (y0 + y1) / 2], dir: [(x1 - x0) / len, (y1 - y0) / len] });
+      }
+    }
     let t = '';
-    for (let i = 0; i + 1 < samples.length; i++) {
-      const [x0, y0] = samples[i];
-      const [x1, y1] = samples[i + 1];
-      const len = Math.hypot(x1 - x0, y1 - y0);
-      if (len < 1e-9) continue;
-      const ux = (x1 - x0) / len; const uy = (y1 - y0) / len;
-      const mx = (x0 + x1) / 2; const my = (y0 + y1) / 2;
+    for (const { point: [mx, my], dir: [ux, uy] } of marks) {
       // left normal in screen space (y down): (uy, -ux)
       const nx = uy; const ny = -ux;
       t += `M${r2(mx - ux * half)} ${r2(my - uy * half)}L${r2(mx + nx * depth)} ${r2(my + ny * depth)}L${r2(mx + ux * half)} ${r2(my + uy * half)}Z`;
@@ -381,7 +414,7 @@ function renderRelief(d, geo, closed, st, upp) {
     return s;
   }
   // ridge
-  s += `<path d="${d}" fill="none" stroke="${c}" stroke-width="${r2(W * 4.5)}" stroke-dasharray="${r2(1.1 * upp)} ${r2(5 * upp)}"/>`;
+  s += dashed(`fill="none" stroke="${c}" stroke-width="${r2(W * 4.5)}"`, `${r2(1.1 * upp)} ${r2(5 * upp)}`);
   s += `<path d="${d}" fill="none" stroke="${c}" stroke-width="${r2(W * 1.4)}" stroke-linejoin="round" stroke-linecap="round"/>`;
   return s;
 }
@@ -419,7 +452,7 @@ function renderBridge(f, pts, T, st, rs, upp, interactive) {
   // hatched approaches
   if (T.ends === 'hatch') {
     const ext = Math.max(hw * 1.6, 6 * upp);
-    const gap = 1.6 * upp;
+    const gap = Math.max(1.6 * upp, ext / 7); // a few hatch lines at any zoom
     let hdash = '';
     for (const [p, dir] of [[a, -1], [b, 1]]) {
       for (let k = gap; k <= ext; k += gap) hdash += `M${pt(P(p, dir * k, hw))}L${pt(P(p, dir * k, -hw))}`;

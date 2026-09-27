@@ -71,6 +71,7 @@ src/
     terrain.js          Unreal Mesh Terrain grid calculator (resolution, quads, sections)
     routes.js           road / rail network, shortest routes, crossings (rivers, faults, water) and bridges
     color.js            hex / RGB / HSV conversions (colour picker)
+    viewclip.js         viewport clipping for the canvas (visible pieces of lines with their dash phase)
 tools/
   ilumap.mjs            CLI: validate | text | svg | mask | terrain | fmt | list
 schema/map.schema.json  JSON Schema (draft 2020-12) of the map format
@@ -310,6 +311,22 @@ panels, `F2` rename, arrows nudge the selection. Grid snapping follows the
 magnet toggle (bottom right); holding `Shift` inverts it while drawing or
 dragging. A feature must be selected before a drag moves it (so a
 click on a big island never moves it by accident); POIs move immediately.
+
+## Canvas performance (`canvas.js`, `core/viewclip.js`)
+
+Map symbols are sized in screen pixels (dashes, rail ties, ridge ticks, cliff
+teeth), so drawing a whole line at high zoom would cost more the closer you
+get. The canvas therefore draws only the visible area plus half a screen on
+every side (`renderParts(…, { viewRect })`): features outside it are skipped,
+lines and outlines that cross it are cut to it by `visiblePieces()` (smooth
+curves sampled a few pixels apart only where visible), and every piece keeps
+its distance from the start of the line, so dash patterns and symbols do not
+jump when the view moves. Features fully inside the area are drawn as they
+are. While the wheel turns, the old drawing is just scaled; the content is
+re-built 120 ms after the last step, and a pan re-builds only when the view
+leaves the drawn area. Exports (SVG, PNG, minimap, CLI) pass no `viewRect`
+and draw everything. The drawn size stays around 10–50 KB at any zoom
+(`test/viewclip.test.js` guards it).
 
 ## Road routes (`src/core/routes.js`)
 
