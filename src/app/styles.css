@@ -833,7 +833,7 @@ input[type="color"].swatch { width: 16px; height: 16px; margin: 0 5px; }
 .ov-sel { fill: none; stroke: var(--accent); pointer-events: none; }
 .ov-cage { fill: none; stroke: var(--accent); stroke-opacity: 0.4; pointer-events: none; }
 .ov-vertex { fill: #111111; stroke: var(--accent); cursor: move; }
-.ov-vertex.first { fill: var(--accent); }
+.ov-vertex.on { fill: var(--accent); stroke: #ffffff; }
 .ov-vertex:hover { fill: var(--accent-yellow); }
 .ov-draft { fill: none; stroke: var(--accent-yellow); pointer-events: none; }
 .ov-draft.fill { fill: var(--accent-yellow); fill-opacity: 0.12; }

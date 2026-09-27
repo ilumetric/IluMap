@@ -125,7 +125,7 @@ they live in `core/render-svg.js` because exports need them.
     narrow chevron with the history list (current step checked, redo steps
     dimmed, click to jump), then the right-sidebar toggle.
   * left **tool stack** (vertically centred): round pills separated by 8px:
-    [Layers] · [Select, Scale, Pan] · [Line, Polygon, Wall, POI] · [Measure,
+    [Layers] · [Edit points, Move / scale, Pan] · [Line, Polygon, Wall, POI] · [Measure,
     Calibrate, Delete]. Buttons are 32px circles; the active tool is filled
     with `--accent`. Draw tools have a 2px underline in the colour of the
     layer they will draw into (`layer-meta.js` → `layerColor`, adjusted for

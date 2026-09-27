@@ -3,7 +3,7 @@
 // vertex handles, tool overlay. Outside the bounds the stage shows the UI's
 // dot grid, which follows pan/zoom through CSS custom properties.
 
-import { store, on, emit, isLayerLocked, visibleLayers } from './state.js';
+import { store, on, emit, isLayerLocked, visibleLayers, vkey } from './state.js';
 import { renderParts, renderGrid, viewRectOfBounds, toView, fromView, esc } from '../core/render-svg.js';
 import { computeTerrain } from '../core/terrain.js';
 import { resolveStyle } from '../core/styles.js';
@@ -331,7 +331,13 @@ export class Canvas {
     const V = (p) => toView(doc, p);
     let s = '';
     const sel = [...store.selection];
-    const showHandles = sel.length <= 6 && store.tool !== 'scale'; // the Scale tool shows its box instead
+    // vertex handles (not in the Transform tool, which shows its box): all of them while
+    // the selection is small enough, otherwise only the selected ones
+    let total = 0;
+    for (const id of sel) { const hit = findById(doc, id); if (hit?.kind === 'feature') total += hit.item.points.length; }
+    const vertexTool = store.tool !== 'scale';
+    const showHandles = vertexTool && total <= 3000;
+    const vsel = store.vsel;
     for (const id of sel) {
       const hit = findById(doc, id);
       if (!hit) continue;
@@ -347,9 +353,11 @@ export class Canvas {
         const d = f.smooth && hit.layer !== 'walls' ? catmullRomToPath(pts, closed) : linearPath(pts, closed);
         s += `<path d="${d}" class="ov-sel" stroke-width="${r2(1.5 * upp)}" stroke-dasharray="${r2(6 * upp)} ${r2(4 * upp)}"/>`;
         if (f.smooth && showHandles) s += `<path d="${linearPath(pts, closed)}" class="ov-cage" stroke-width="${r2(1 * upp)}"/>`;
-        if (showHandles && !isLayerLocked(hit.layer)) {
+        if (vertexTool && !isLayerLocked(hit.layer)) {
           pts.forEach(([x, y], i) => {
-            s += `<circle cx="${r2(x)}" cy="${r2(y)}" r="${r2((i === 0 ? 5.5 : 4.5) * upp)}" class="ov-vertex${i === 0 ? ' first' : ''}" stroke-width="${r2(1.5 * upp)}" data-vertex="${i}" data-fid="${esc(f.id)}"/>`;
+            const on = vsel.has(vkey(f.id, i));
+            if (!showHandles && !on) return;
+            s += `<circle cx="${r2(x)}" cy="${r2(y)}" r="${r2((i === 0 ? 5.5 : 4.5) * upp)}" class="ov-vertex${i === 0 ? ' first' : ''}${on ? ' on' : ''}" stroke-width="${r2(1.5 * upp)}" data-vertex="${i}" data-fid="${esc(f.id)}"/>`;
           });
         }
       }

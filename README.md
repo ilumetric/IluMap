@@ -72,7 +72,7 @@ memory for the session only.
 
 ### The editor at a glance
 
-- **Left toolbar:** Layers panel · Select, Scale, Pan · Line, Polygon, Wall, Bridge, POI ·
+- **Left toolbar:** Layers panel · Edit points, Move / scale, Pan · Line, Polygon, Wall, Bridge, POI ·
   Measure, Calibrate, Delete. Draw tools carry a coloured underline: the
   colour of the layer they will draw into.
 - **Top:** map name (click to rename) and Save · Layers panel, grid /
@@ -277,8 +277,8 @@ together with `masks.json` (Chrome / Edge).
 
 | Key | Action |
 |---|---|
-| `V` | Select / move (Shift+click adds, drag on empty space box-selects) |
-| `S` | Scale: a box with handles around the selection (corners keep proportions, `Ctrl` free, `Alt` from the centre, `Esc` cancels) |
+| `V` | Edit points: click an object to show its vertices, click / Shift+click / drag a box to select vertices and POIs, drag them to move; arrows nudge, `Delete` removes them (all points of a feature selected = the feature) |
+| `S` | Move / scale whole objects: drag inside the box to move, handles to scale (corners keep proportions, `Ctrl` free, `Alt` from the centre, `Esc` cancels) |
 | `H`, hold `Space`, middle mouse | Pan |
 | Wheel · `F` · `+` / `-` | Zoom to cursor · fit · zoom |
 | `L` / `P` / `W` / `B` | Line / polygon / wall / bridge tool (drawing goes into the active layer — pick it in the dock; a bridge is one click per bank) |

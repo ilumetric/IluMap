@@ -1,18 +1,22 @@
-// Scale tool: a bounding box with eight handles around the selection.
-// Corner handles scale proportionally (Ctrl: free), edge handles scale one
-// axis, Alt scales about the centre; the dragged handle follows grid snapping
-// (the snap toggle, Shift inverts it). Everything else — clicking to select,
-// Shift+click, box selection, dragging the selection to move it — works as in
-// the Select tool. One drag = one undo step; Esc during a drag cancels it.
-// Only geometry is scaled: feature points and POI positions (line widths,
-// wall / bridge widths and POI symbols keep their size).
+// Transform tool (S): moves and scales whole objects. A bounding box with
+// eight handles surrounds the selection. Corner handles scale proportionally
+// (Ctrl: free), edge handles scale one axis, Alt scales about the centre; the
+// dragged handle follows grid snapping (the snap toggle, Shift inverts it).
+// Drag inside the box (or on a selected object) to move the selection; click
+// an object to select it (Shift toggles), drag on empty space to box-select
+// the objects that lie entirely inside. One drag = one undo step; Esc during
+// a drag cancels it. Only geometry changes: feature points and POI positions
+// (line widths, wall / bridge widths and POI symbols keep their size).
+// Individual vertices are edited with the Edit tool (V).
 
-import { store, beginChange, endChange, abortChange, liveUpdate, isLayerLocked, isChanging } from '../state.js';
-import { findById, zoneOf } from '../../core/model.js';
+import {
+  store, select, clearSelection, beginChange, endChange, abortChange, liveUpdate, isLayerLocked, isLayerVisible, isChanging,
+} from '../state.js';
+import { findById, zoneOf, features } from '../../core/model.js';
 import { toView, fromView } from '../../core/render-svg.js';
 import { t } from '../i18n/index.js';
 import { fmtLength } from '../i18n/format.js';
-import selectTool from './select.js';
+import { boxOverlay } from './select.js';
 
 const HANDLE_PX = 9; // handle size on screen
 const MIN_FACTOR = 0.001; // no flipping through the anchor, no collapse to a point
@@ -23,7 +27,31 @@ const HANDLES = {
 };
 const CURSORS = { nw: 'nwse-resize', se: 'nwse-resize', ne: 'nesw-resize', sw: 'nesw-resize', n: 'ns-resize', s: 'ns-resize', e: 'ew-resize', w: 'ew-resize' };
 
-let drag = null;
+let drag = null; // scaling by a handle
+let pick = null; // moving the selection, or a selection box
+
+function snapshot(items) {
+  return items.map((it) => (it.kind === 'poi'
+    ? { ...it, x: it.item.x, y: it.item.y }
+    : { ...it, points: it.item.points.map((p) => p.slice()) }));
+}
+
+function updateZones(items) {
+  for (const it of items) {
+    if (it.kind !== 'poi') continue;
+    const z = zoneOf(store.doc, [it.item.x, it.item.y]);
+    if (z) it.item.zone = z; else delete it.item.zone;
+  }
+}
+
+const insideBox = (b, [x, y]) => b && x >= b.x0 && x <= b.x1 && y >= b.y0 && y <= b.y1;
+
+/** Start moving the selection; `primary` (a POI) snaps to the grid, everything follows. */
+function startMove(ctx, primary = null) {
+  const items = editableItems();
+  if (!items.length) { pick = null; return; }
+  pick = { type: 'move', start: ctx.screen, startWorld: ctx.world, items: snapshot(items), primary, moved: false };
+}
 
 /** Editable selected items (locked layers are left alone). */
 function editableItems() {
@@ -129,9 +157,7 @@ export default {
       drag = {
         handle: el.dataset.scaleHandle,
         box,
-        items: items.map((it) => (it.kind === 'poi'
-          ? { ...it, x: it.item.x, y: it.item.y }
-          : { ...it, points: it.item.points.map((p) => p.slice()) })),
+        items: snapshot(items),
         moved: false,
         start: ctx.screen,
         f: { sx: 1, sy: 1 },
@@ -139,12 +165,48 @@ export default {
       setCursor(ctx.canvas, CURSORS[drag.handle]);
       return;
     }
-    selectTool.down(ctx);
+    pick = null;
+    const { hit } = ctx;
+    if (hit?.type === 'poi' || hit?.type === 'feature') {
+      const was = store.selection.has(hit.id);
+      if (ctx.shift) { select(hit.id, { toggle: true }); return; }
+      if (!was) select(hit.id);
+      // POIs move right away; a feature moves once it is selected (no dragging an island by accident)
+      if (hit.type === 'poi' || was) {
+        const p = hit.type === 'poi' ? findById(store.doc, hit.id)?.item : null;
+        startMove(ctx, p ? [p.x, p.y] : null);
+        return;
+      }
+    } else if (insideBox(viewBox(editableItems()), ctx.view)) {
+      startMove(ctx);
+      return;
+    } else if (!ctx.shift) clearSelection();
+    pick = { type: 'box', start: ctx.screen, startView: ctx.view, cur: ctx.view, moved: false, add: ctx.shift };
   },
 
   move(ctx) {
     if (!drag) {
-      selectTool.move(ctx);
+      if (!pick) return;
+      if (!pick.moved && Math.hypot(ctx.screen[0] - pick.start[0], ctx.screen[1] - pick.start[1]) < 3) return;
+      if (pick.type === 'box') {
+        pick.moved = true;
+        pick.cur = ctx.view;
+        ctx.canvas.invalidate('tool');
+        return;
+      }
+      if (!pick.moved) beginChange();
+      pick.moved = true;
+      let dx = ctx.world[0] - pick.startWorld[0];
+      let dy = ctx.world[1] - pick.startWorld[1];
+      if (ctx.snap && pick.primary) {
+        const s = ctx.canvas.snap([pick.primary[0] + dx, pick.primary[1] + dy]);
+        dx = s[0] - pick.primary[0];
+        dy = s[1] - pick.primary[1];
+      }
+      for (const it of pick.items) {
+        if (it.kind === 'poi') { it.item.x = Math.round(it.x + dx); it.item.y = Math.round(it.y + dy); } else it.item.points = it.points.map(([x, y]) => [Math.round(x + dx), Math.round(y + dy)]);
+      }
+      liveUpdate();
       return;
     }
     if (!drag.moved && Math.hypot(ctx.screen[0] - drag.start[0], ctx.screen[1] - drag.start[1]) < 2) return;
@@ -157,36 +219,55 @@ export default {
 
   up(ctx) {
     if (!drag) {
-      selectTool.up(ctx);
+      const p = pick;
+      pick = null;
+      if (!p) return;
+      if (p.type === 'move') {
+        if (p.moved) { updateZones(p.items); endChange(); }
+        return;
+      }
+      ctx.canvas.invalidate('tool');
+      if (!p.moved) return;
+      // box: objects that lie entirely inside
+      const x0 = Math.min(p.startView[0], p.cur[0]); const x1 = Math.max(p.startView[0], p.cur[0]);
+      const y0 = Math.min(p.startView[1], p.cur[1]); const y1 = Math.max(p.startView[1], p.cur[1]);
+      const inside = (q) => insideBox({ x0, y0, x1, y1 }, toView(store.doc, q));
+      const ids = [];
+      if (isLayerVisible('pois') && !isLayerLocked('pois')) {
+        for (const q of store.doc.pois) if (q.placed !== false && inside([q.x, q.y])) ids.push(q.id);
+      }
+      for (const { layer, feature } of features(store.doc)) {
+        if (feature.hidden || !isLayerVisible(layer) || isLayerLocked(layer)) continue;
+        if (feature.points.length && feature.points.every(inside)) ids.push(feature.id);
+      }
+      select(ids, { add: p.add });
       return;
     }
     const d = drag;
     drag = null;
     ctx.canvas.updateCursor();
     if (!d.moved) return;
-    for (const it of d.items) {
-      if (it.kind !== 'poi') continue;
-      const z = zoneOf(store.doc, [it.item.x, it.item.y]);
-      if (z) it.item.zone = z; else delete it.item.zone;
-    }
+    updateZones(d.items);
     endChange();
   },
 
   onKey(e, canvas) {
-    if (e.key === 'Escape' && drag) {
-      const d = drag;
+    if (e.key === 'Escape' && (drag || pick)) {
+      const d = drag || pick;
       drag = null;
+      pick = null;
       canvas.updateCursor();
-      if (d.moved) abortChange();
+      canvas.invalidate('tool');
+      if (d.moved && d.type !== 'box') abortChange();
       return true;
     }
     return false;
   },
 
   cancel() {
-    if (drag?.moved) endChange();
+    if (drag?.moved || (pick?.type === 'move' && pick.moved)) endChange();
     drag = null;
-    selectTool.cancel?.();
+    pick = null;
   },
 
   deactivate() { this.cancel(); },
@@ -203,7 +284,7 @@ export default {
   },
 
   overlay(canvas) {
-    let s = selectTool.overlay(canvas) || '';
+    let s = boxOverlay(canvas, pick);
     const items = editableItems();
     if (!items.length) return s;
     const box = viewBox(items);

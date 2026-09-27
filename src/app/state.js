@@ -74,6 +74,7 @@ function loadPrefs() {
 export const store = {
   doc: createEmptyMap(),
   selection: new Set(),
+  vsel: new Set(), // selected vertices of selected features (Edit tool): vkey(featureId, index)
   tool: 'select',
   activeLayer: 'land',
   prefs: loadPrefs(),
@@ -124,6 +125,7 @@ export function setDoc(doc, { name, handle = null, baseUrl = null, dir = null, s
   }
   historyKey = key;
   store.selection = new Set();
+  store.vsel = new Set();
   // dir: { handle, mapDir } when the map was opened through "Open folder" (disk.js)
   store.file = { handle, name: name || 'map.json', baseUrl, dir };
   pending = null;
@@ -242,13 +244,50 @@ function pruneSelection() {
     const hit = findById(store.doc, id);
     if (!hit || (hit.kind !== 'poi' && hit.kind !== 'feature')) { store.selection.delete(id); changed = true; }
   }
+  if (pruneVertices()) changed = true;
   if (changed) emit('selection');
+}
+
+/** Drop selected vertices whose feature is no longer selected or that no longer exist. */
+function pruneVertices() {
+  let changed = false;
+  for (const k of [...store.vsel]) {
+    const [id, i] = parseVkey(k);
+    const hit = store.selection.has(id) ? findById(store.doc, id) : null;
+    if (!hit || hit.kind !== 'feature' || !(i < hit.item.points.length)) { store.vsel.delete(k); changed = true; }
+  }
+  return changed;
+}
+
+/** Key of a vertex in store.vsel. */
+export const vkey = (id, i) => `${id}\u0001${i}`;
+export function parseVkey(k) {
+  const j = k.lastIndexOf('\u0001');
+  return [k.slice(0, j), Number(k.slice(j + 1))];
+}
+
+/** Select vertices (keys from vkey). Their features must be selected (see select()). */
+export function selectVertices(keys, { add = false, toggle = false } = {}) {
+  if (!add && !toggle) store.vsel = new Set();
+  for (const k of keys) {
+    if (toggle && store.vsel.has(k)) store.vsel.delete(k);
+    else store.vsel.add(k);
+  }
+  pruneVertices();
+  emit('selection');
+}
+
+export function clearVertices() {
+  if (!store.vsel.size) return;
+  store.vsel = new Set();
+  emit('selection');
 }
 
 export function canUndo() { return history.undo.length > 0 && pending === null; }
 export function canRedo() { return history.redo.length > 0 && pending === null; }
 
 function restoreSelection(ids) {
+  store.vsel = new Set(); // vertex indices may have shifted
   store.selection = new Set(ids.filter((id) => {
     const hit = findById(store.doc, id);
     return hit && (hit.kind === 'poi' || hit.kind === 'feature');
@@ -325,12 +364,14 @@ export function select(ids, { add = false, toggle = false } = {}) {
     if (toggle && store.selection.has(id)) store.selection.delete(id);
     else store.selection.add(id);
   }
+  pruneVertices();
   emit('selection');
 }
 
 export function clearSelection() {
-  if (!store.selection.size) return;
+  if (!store.selection.size && !store.vsel.size) return;
   store.selection = new Set();
+  store.vsel = new Set();
   emit('selection');
 }
 
@@ -341,6 +382,7 @@ export function selectedItems() {
 export function setTool(id) {
   if (store.tool === id) return;
   store.tool = id;
+  if (store.vsel.size) { store.vsel = new Set(); emit('selection'); } // vertex selection belongs to the Edit tool
   emit('tool');
 }
 

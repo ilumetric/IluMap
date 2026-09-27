@@ -3,10 +3,11 @@
 
 import {
   store, on, emit, undo, redo, change, select, clearSelection, setTool, selectedItems, isLayerLocked, isLayerVisible,
-  isChanging,
+  isChanging, clearVertices, parseVkey,
 } from './state.js';
 import { Canvas } from './canvas.js';
 import { TOOLS } from './tools/index.js';
+import { selectedPoints, movePoints, updateZones } from './tools/select.js';
 import { save, saveAs, placePoi } from './io.js';
 import { mountLayers } from './panels/layers.js';
 import { mountPoiList } from './panels/poi-list.js';
@@ -14,7 +15,7 @@ import { mountInspector } from './panels/inspector.js';
 import { mountMapSettings } from './panels/map.js';
 import { mountStyle } from './panels/style.js';
 import { mountTerrain } from './panels/terrain.js';
-import { removeById, zoneOf } from '../core/model.js';
+import { removeById, removeVertex, findById, zoneOf } from '../core/model.js';
 import { $, h, isTyping, openDialog, toast } from './dom.js';
 import { createPanel, clampFloatingPanels } from './ui/floating-panel.js';
 import { mountSidebar } from './ui/sidebar.js';
@@ -73,10 +74,40 @@ function activateTool(id) {
 on('set-tool', activateTool);
 
 function deleteSelection() {
+  if (store.vsel.size) { deleteVertices(); return; }
   const items = selectedItems().filter(({ hit }) => !isLayerLocked(hit.kind === 'poi' ? 'pois' : hit.layer));
   if (!items.length) return;
   change((doc) => { for (const { id } of items) removeById(doc, id); });
   toast(plural('toast.deleted', items.length), { timeout: 2500 });
+}
+
+/**
+ * Edit tool: Delete removes the selected points. A feature whose points are
+ * all selected is removed as a whole; selected POIs are removed too.
+ */
+function deleteVertices() {
+  const byFeature = new Map();
+  for (const k of store.vsel) {
+    const [id, i] = parseVkey(k);
+    if (!byFeature.has(id)) byFeature.set(id, []);
+    byFeature.get(id).push(i);
+  }
+  let blocked = null;
+  change((doc) => {
+    for (const [id, idx] of byFeature) {
+      const hit = findById(doc, id);
+      if (!hit || hit.kind !== 'feature' || isLayerLocked(hit.layer)) continue;
+      if (idx.length >= hit.item.points.length) { removeById(doc, id); continue; }
+      for (const i of idx.sort((a, b) => b - a)) {
+        if (!removeVertex(hit.item, i)) { blocked = hit.item; break; }
+      }
+    }
+    if (!isLayerLocked('pois')) {
+      for (const id of [...store.selection]) if (findById(doc, id)?.kind === 'poi') removeById(doc, id);
+    }
+  });
+  clearVertices();
+  if (blocked) toast(t(blocked.kind === 'polygon' ? 'toast.polygonMinPoints' : 'toast.lineMinPoints'), { type: 'warn' });
 }
 
 // Undo / redo: a short notice names the step (one notice at a time, so holding Ctrl+Z does not pile them up)
@@ -130,6 +161,13 @@ window.addEventListener('drop', (e) => { if (!e.target.closest('#stage')) e.prev
 const KEY_TOOLS = { v: 'select', s: 'scale', h: 'pan', l: 'line', p: 'polygon', w: 'wall', b: 'bridge', o: 'poi', m: 'measure', k: 'calibrate' };
 
 function nudge(dx, dy) {
+  // Edit tool: only the selected points (vertices and POIs) move
+  if (store.tool === 'select') {
+    const pts = selectedPoints();
+    if (!pts.length) return false;
+    change(() => { movePoints(pts, dx, dy); updateZones(pts); }, { merge: 'nudge' });
+    return true;
+  }
   const items = selectedItems();
   if (!items.length) return false;
   // repeated arrow presses within a second are one undo step
@@ -185,6 +223,7 @@ document.addEventListener('keydown', (e) => {
   switch (e.key) {
     case 'Escape':
       if (store.tool !== 'select') activateTool('select');
+      else if (store.vsel.size) clearVertices(); // points first, then the objects
       else clearSelection();
       break;
     case 'Delete':
