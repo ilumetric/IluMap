@@ -12,7 +12,7 @@ import {
   layerLabel, layerAbbr, typeLabel, DOCK_LAYERS, typeOptions, newTypeFor, setNewType, layerColor, colorTarget, chromeTint,
 } from './layer-meta.js';
 
-const DRAW_TOOLS = ['line', 'polygon', 'wall', 'poi'];
+const DRAW_TOOLS = ['line', 'polygon', 'wall', 'bridge', 'poi'];
 
 /** The layer the dock shows as active: POIs while the POI tool is on, else the active layer. */
 export function dockLayer() {
@@ -22,6 +22,7 @@ export function dockLayer() {
 function toolForLayer(layer) {
   if (layer === 'pois') return 'poi';
   if (layer === 'walls') return 'wall';
+  if (layer === 'bridges') return 'bridge';
   return LAYER_KIND[layer] === 'polygon' ? 'polygon' : 'line';
 }
 

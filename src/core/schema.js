@@ -5,7 +5,7 @@ export const FORMAT = 'ilumap';
 export const VERSION = 1;
 
 /** Layer names in file order. */
-export const LAYERS = ['land', 'water', 'coast', 'rivers', 'roads', 'rails', 'walls', 'zones'];
+export const LAYERS = ['land', 'water', 'coast', 'rivers', 'roads', 'rails', 'walls', 'zones', 'relief', 'bridges'];
 
 /** Geometry kind of each layer. */
 export const LAYER_KIND = {
@@ -17,10 +17,12 @@ export const LAYER_KIND = {
   rails: 'line',
   walls: 'line',
   zones: 'polygon',
+  relief: 'line',
+  bridges: 'line',
 };
 
 /** Draw order, bottom to top (POIs and labels are drawn after these). */
-export const DRAW_ORDER = ['land', 'zones', 'water', 'coast', 'rivers', 'roads', 'rails', 'walls'];
+export const DRAW_ORDER = ['land', 'zones', 'water', 'relief', 'coast', 'rivers', 'roads', 'rails', 'bridges', 'walls'];
 
 export const LINE_LAYERS = LAYERS.filter((l) => LAYER_KIND[l] === 'line');
 export const POLYGON_LAYERS = LAYERS.filter((l) => LAYER_KIND[l] === 'polygon');
@@ -57,6 +59,8 @@ export const LAYER_ID_PREFIX = {
   rails: 'rail',
   walls: 'wall',
   zones: 'zone',
+  relief: 'relief',
+  bridges: 'bridge',
 };
 
 /**
@@ -73,8 +77,8 @@ export const KEY_ORDER = {
   background: ['src', 'opacity', 'calibration'],
   calibrationPair: ['px', 'world'],
   grid: ['step', 'visible'],
-  style: ['preset', 'ocean', 'label', 'grid', 'layers', 'lineTypes', 'wallTypes', 'zoneTypes', 'poiTypes'],
-  styleEntry: ['fill', 'stroke', 'color', 'width', 'dash', 'opacity', 'pattern', 'icon'],
+  style: ['preset', 'ocean', 'label', 'grid', 'layers', 'lineTypes', 'wallTypes', 'zoneTypes', 'reliefTypes', 'bridgeTypes', 'poiTypes'],
+  styleEntry: ['fill', 'stroke', 'color', 'width', 'dash', 'opacity', 'pattern', 'icon', 'abbr', 'piers', 'ends'],
   layers: LAYERS,
   feature: ['id', 'name', 'kind', 'type', 'points', 'closed', 'smooth', 'width', 'color', 'tags', 'notes', 'hidden', 'wall'],
   wall: ['towers', 'towerSpacing', 'towerSize', 'gates'],

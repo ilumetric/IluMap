@@ -124,8 +124,21 @@ export function mountInspector(root, { canvas, mapSettings }) {
   }
 
   function actions(hit) {
+    // lines can be reversed: flips the cliff teeth, river flow, route direction
+    const reversible = hit.kind === 'feature' && LAYER_KIND[hit.layer] === 'line';
     return h('div', { class: 'insp-actions' },
       h('button', { type: 'button', class: 'btn btn-small', onclick: () => centerOn(hit) }, icon('target'), t('inspector.center')),
+      reversible ? h('button', {
+        type: 'button', class: 'btn btn-small', title: t('inspector.reverseTitle'),
+        onclick: () => edit(hit.item.id, (it) => {
+          const n = it.points.length;
+          it.points.reverse();
+          for (const g of it.wall?.gates || []) {
+            if (Number.isInteger(g.at)) g.at = n - 1 - g.at;
+            else if (typeof g.t === 'number') g.t = Math.round((1 - g.t) * 1000) / 1000;
+          }
+        }),
+      }, icon('redo'), t('inspector.reverse')) : null,
       h('button', { class: 'btn btn-small btn-danger', onclick: () => change((doc) => removeById(doc, hit.item.id)) }, icon('trash'), t('inspector.delete')));
   }
 

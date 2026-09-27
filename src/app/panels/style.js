@@ -97,6 +97,26 @@ export function mountStyle(root) {
       }
       body.append(h('section', { class: 'insp-section' }, h('h4', {}, t('style.poiTypes')), h('p', { class: 'muted small' }, t('style.poiTypesHint')), pt, addTypeButton('poiTypes', { color: '#8ecae6', icon: 'dot' })));
 
+      // relief types
+      const rt = h('table', { class: 'style-table' }, h('tr', {}, h('th', {}, t('style.reliefType')), h('th', {}, t('style.stroke')), h('th', {}, t('style.pattern'))));
+      for (const [name, e] of Object.entries(rs.reliefTypes)) {
+        rt.append(h('tr', {}, h('td', { title: name }, label('reliefTypes', name)), h('td', {}, colorCell(`rs-${name}`, e.stroke, (v) => setOverride('reliefTypes', name, 'stroke', v))), h('td', { class: 'muted' }, e.pattern ? label('patterns', e.pattern) : '')));
+      }
+      body.append(h('section', { class: 'insp-section' }, h('h4', {}, t('style.reliefTypes')), rt));
+
+      // bridge types: colour, label on the map, piers, hatched approaches
+      const bt = h('table', { class: 'style-table' }, h('tr', {}, h('th', {}, t('style.bridgeType')), h('th', {}, t('style.stroke')), h('th', {}, t('style.abbr')), h('th', { title: t('style.piersTitle') }, t('style.piers')), h('th', { title: t('style.endsTitle') }, t('style.ends'))));
+      for (const [name, e] of Object.entries(rs.bridgeTypes)) {
+        const abbr = h('input', { type: 'text', name: `ba-${name}`, value: e.abbr ?? '', class: 'narrow' });
+        abbr.addEventListener('change', () => setOverride('bridgeTypes', name, 'abbr', abbr.value.trim()));
+        const piers = h('input', { type: 'checkbox', name: `bp-${name}`, checked: !!e.piers });
+        piers.addEventListener('change', () => setOverride('bridgeTypes', name, 'piers', piers.checked));
+        const ends = h('input', { type: 'checkbox', name: `be-${name}`, checked: e.ends === 'hatch' });
+        ends.addEventListener('change', () => setOverride('bridgeTypes', name, 'ends', ends.checked ? 'hatch' : null));
+        bt.append(h('tr', {}, h('td', { title: name }, label('bridgeTypes', name)), h('td', {}, colorCell(`bs-${name}`, e.stroke, (v) => setOverride('bridgeTypes', name, 'stroke', v))), h('td', {}, abbr), h('td', {}, piers), h('td', {}, ends)));
+      }
+      body.append(h('section', { class: 'insp-section' }, h('h4', {}, t('style.bridgeTypes')), h('p', { class: 'muted small' }, t('style.bridgeTypesHint')), bt));
+
       // wall + line types
       const wt = h('table', { class: 'style-table' }, h('tr', {}, h('th', {}, t('style.wallLineType')), h('th', {}, t('style.stroke')), h('th', {}, t('style.dash'))));
       for (const [name, e] of Object.entries(rs.wallTypes)) {

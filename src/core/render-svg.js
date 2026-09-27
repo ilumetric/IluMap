@@ -8,7 +8,7 @@
 import { DRAW_ORDER } from './schema.js';
 import { resolveStyle, featureStyle, poiStyle, STATUS_COLORS } from './styles.js';
 import {
-  catmullRomToPath, linearPath, centroid, featureGeometry, wallLayout, cutGaps, atDistance, polylineLength,
+  catmullRomToPath, linearPath, centroid, featureGeometry, wallLayout, cutGaps, atDistance, polylineLength, resample,
 } from './geometry.js';
 
 /** Icon paths in a 24x24 box centred on 0,0. */
@@ -256,6 +256,14 @@ export function renderParts(doc, opts = {}) {
         if (st.pattern) g += `<path d="${d}" fill="url(#ilm-pat-${safeId(f.type)})" fill-opacity="${Math.min(1, op + 0.35)}" stroke="none" pointer-events="none"/>`;
       } else if (layer === 'walls') {
         g += renderWall(f, pts, st, upp, interactive);
+      } else if (layer === 'bridges') {
+        const B = renderBridge(f, pts, rs.bridgeTypes[f.type] || {}, st, rs, upp, interactive);
+        g += B.svg;
+        if (showLabels && B.label) labels.push(labelText(B.label.x, B.label.y, B.label.text, { size: 9, italic: true, weight: 600, rotate: B.label.rotate }));
+      } else if (layer === 'relief') {
+        const geo = smooth ? featureGeometry({ ...f, points: pts }) : pts;
+        g += hitPath(d, st.width * upp);
+        g += renderRelief(d, geo, closed, st, upp);
       } else {
         const W = st.worldWidth ? Math.max(st.worldWidth, upp) : st.width * upp;
         const cap = layer === 'rails' ? 'butt' : 'round';
@@ -289,7 +297,9 @@ export function renderParts(doc, opts = {}) {
           }
         } else if (layer === 'rivers') {
           lineLabel(featureGeometry({ ...f, points: pts }), closed, f.name, { size: 10, italic: true, color: st.stroke });
-        } else if (layer !== 'walls') {
+        } else if (layer === 'relief') {
+          lineLabel(featureGeometry({ ...f, points: pts }), closed, f.name, { size: 10, italic: true, color: st.stroke });
+        } else if (layer !== 'walls' && layer !== 'bridges') {
           lineLabel(featureGeometry({ ...f, points: pts }), closed, f.name, { size: 10 });
         }
       }
@@ -331,6 +341,118 @@ export function renderParts(doc, opts = {}) {
   const labelsG = `<g id="layer-labels" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" pointer-events="none">${labels.join('')}</g>`;
   const body = DRAW_ORDER.map((l) => layerOut[l]).join('') + poisG + labelsG;
   return { defs, layers: layerOut, pois: poisG, labels: labelsG, body, style: rs };
+}
+
+/**
+ * Relief lines (view coordinates). pattern: ridge = line with short ticks on
+ * both sides; fault = dash-dot line with sparse cross ticks; cliff = line with
+ * teeth on the left of the drawing direction (the downhill side — reverse the
+ * line to flip them).
+ */
+function renderRelief(d, geo, closed, st, upp) {
+  const W = st.width * upp;
+  const c = st.stroke;
+  const pattern = st.pattern || 'ridge';
+  let s = '';
+  if (pattern === 'fault') {
+    s += `<path d="${d}" fill="none" stroke="${c}" stroke-width="${r2(W * 5.5)}" stroke-dasharray="${r2(1.3 * upp)} ${r2(13 * upp)}"/>`;
+    s += `<path d="${d}" fill="none" stroke="${c}" stroke-width="${r2(W * 1.3)}" stroke-linecap="round" stroke-dasharray="${r2(9 * upp)} ${r2(3 * upp)} ${r2(1.5 * upp)} ${r2(3 * upp)}"/>`;
+    return s;
+  }
+  if (pattern === 'cliff') {
+    s += `<path d="${d}" fill="none" stroke="${c}" stroke-width="${r2(W * 1.2)}" stroke-linejoin="round" stroke-linecap="round"/>`;
+    const step = 7 * upp;
+    const half = 2.2 * upp;
+    const depth = 4.5 * upp;
+    const samples = resample(geo, step, closed);
+    let t = '';
+    for (let i = 0; i + 1 < samples.length; i++) {
+      const [x0, y0] = samples[i];
+      const [x1, y1] = samples[i + 1];
+      const len = Math.hypot(x1 - x0, y1 - y0);
+      if (len < 1e-9) continue;
+      const ux = (x1 - x0) / len; const uy = (y1 - y0) / len;
+      const mx = (x0 + x1) / 2; const my = (y0 + y1) / 2;
+      // left normal in screen space (y down): (uy, -ux)
+      const nx = uy; const ny = -ux;
+      t += `M${r2(mx - ux * half)} ${r2(my - uy * half)}L${r2(mx + nx * depth)} ${r2(my + ny * depth)}L${r2(mx + ux * half)} ${r2(my + uy * half)}Z`;
+    }
+    if (t) s += `<path d="${t}" fill="${c}" stroke="none"/>`;
+    return s;
+  }
+  // ridge
+  s += `<path d="${d}" fill="none" stroke="${c}" stroke-width="${r2(W * 4.5)}" stroke-dasharray="${r2(1.1 * upp)} ${r2(5 * upp)}"/>`;
+  s += `<path d="${d}" fill="none" stroke="${c}" stroke-width="${r2(W * 1.4)}" stroke-linejoin="round" stroke-linecap="round"/>`;
+  return s;
+}
+
+/**
+ * Bridge as on a topographic map: the axis runs from the first to the last
+ * point; two deck lines, splayed wing ticks at the four corners, optional
+ * piers (squares with a cross) and hatched approaches, and the type
+ * abbreviation (or the name) as a label beside the deck.
+ */
+function renderBridge(f, pts, T, st, rs, upp, interactive) {
+  let a = pts[0];
+  let b = pts[pts.length - 1];
+  const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+  if (L < 1e-9) return { svg: '', label: null };
+  const ux = (b[0] - a[0]) / L; const uy = (b[1] - a[1]) / L;
+  // like a map symbol: never shorter than 16 px on screen (grows around the middle)
+  const minL = 16 * upp;
+  if (L < minL) {
+    const m = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    a = [m[0] - (ux * minL) / 2, m[1] - (uy * minL) / 2];
+    b = [m[0] + (ux * minL) / 2, m[1] + (uy * minL) / 2];
+  }
+  const nx = -uy; const ny = ux;
+  const hw = f.width > 0 ? Math.max(f.width / 2, 1.5 * upp) : (T.width ?? 3) * upp;
+  const c = st.stroke;
+  const sw = r2(Math.max(0.6, st.width) * upp);
+  const P = (p, du, dn) => [p[0] + ux * du + nx * dn, p[1] + uy * du + ny * dn];
+  const pt = (p) => `${r2(p[0])} ${r2(p[1])}`;
+  const wing = Math.max(hw * 0.9, 4 * upp);
+  let s = '';
+  if (interactive) s += `<path class="ilm-hit" d="M${pt(a)}L${pt(b)}" fill="none" stroke="transparent" stroke-width="${r2(Math.max(hw * 2 + 6 * upp, 12 * upp))}"/>`;
+  // deck (covers the river underneath)
+  s += `<path d="M${pt(P(a, 0, hw))}L${pt(P(b, 0, hw))}L${pt(P(b, 0, -hw))}L${pt(P(a, 0, -hw))}Z" fill="${rs.halo}" fill-opacity="0.9" stroke="none"/>`;
+  // hatched approaches
+  if (T.ends === 'hatch') {
+    const ext = Math.max(hw * 1.6, 6 * upp);
+    const gap = 1.6 * upp;
+    let hdash = '';
+    for (const [p, dir] of [[a, -1], [b, 1]]) {
+      for (let k = gap; k <= ext; k += gap) hdash += `M${pt(P(p, dir * k, hw))}L${pt(P(p, dir * k, -hw))}`;
+      hdash += `M${pt(P(p, 0, hw))}L${pt(P(p, dir * ext, hw))}M${pt(P(p, 0, -hw))}L${pt(P(p, dir * ext, -hw))}`;
+    }
+    s += `<path d="${hdash}" fill="none" stroke="${c}" stroke-width="${r2(sw * 0.7)}"/>`;
+  }
+  // deck lines + wings
+  let dd = `M${pt(P(a, 0, hw))}L${pt(P(b, 0, hw))}M${pt(P(a, 0, -hw))}L${pt(P(b, 0, -hw))}`;
+  const k = wing / Math.SQRT2;
+  dd += `M${pt(P(a, 0, hw))}L${pt(P(a, -k, hw + k))}M${pt(P(a, 0, -hw))}L${pt(P(a, -k, -hw - k))}`;
+  dd += `M${pt(P(b, 0, hw))}L${pt(P(b, k, hw + k))}M${pt(P(b, 0, -hw))}L${pt(P(b, k, -hw - k))}`;
+  s += `<path d="${dd}" fill="none" stroke="${c}" stroke-width="${sw}" stroke-linecap="round"/>`;
+  // piers: squares with a cross at the corners
+  if (T.piers) {
+    const q = Math.max(hw * 0.55, 2.2 * upp);
+    let pd = '';
+    for (const p of [P(a, 0, hw), P(a, 0, -hw), P(b, 0, hw), P(b, 0, -hw)]) {
+      const c0 = P(p, -q, -q); const c1 = P(p, q, -q); const c2 = P(p, q, q); const c3 = P(p, -q, q);
+      pd += `M${pt(c0)}L${pt(c1)}L${pt(c2)}L${pt(c3)}ZM${pt(c0)}L${pt(c2)}M${pt(c1)}L${pt(c3)}`;
+    }
+    s += `<path d="${pd}" fill="${rs.halo}" stroke="${c}" stroke-width="${r2(sw * 0.8)}"/>`;
+  }
+  // label beside the deck, reading left to right
+  let deg = (Math.atan2(uy, ux) * 180) / Math.PI;
+  let side = 1;
+  if (deg > 90) { deg -= 180; side = -1; }
+  if (deg < -90) { deg += 180; side = -1; }
+  const mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+  const off = hw + 8 * upp;
+  const lp = P(mid, 0, -off * side);
+  const text = f.name ? (T.abbr ? `${f.name} · ${T.abbr}` : f.name) : T.abbr || '';
+  return { svg: s, label: text ? { x: lp[0], y: lp[1], text, rotate: deg } : null };
 }
 
 function renderWall(f, pts, st, upp, interactive) {

@@ -445,6 +445,70 @@
         ],
         "smooth": true
       }
+    ],
+    "relief": [
+      {
+        "id": "ridge_iron_spine",
+        "name": "Iron Spine",
+        "kind": "line",
+        "type": "ridge",
+        "points": [
+          [1100000, 1050000],
+          [1600000, 900000],
+          [2100000, 950000],
+          [2600000, 1150000]
+        ],
+        "smooth": true
+      },
+      {
+        "id": "fault_great",
+        "name": "Great Fault",
+        "kind": "line",
+        "type": "fault",
+        "points": [
+          [2580000, 1950000],
+          [2640000, 2130000],
+          [2700000, 2330000]
+        ],
+        "smooth": true,
+        "notes": "No bridge yet: the road to the eastern downs is cut here."
+      },
+      {
+        "id": "cliff_salt",
+        "name": "Salt Cliffs",
+        "kind": "line",
+        "type": "cliff",
+        "points": [
+          [1350000, 3420000],
+          [1100000, 3350000],
+          [900000, 3200000]
+        ],
+        "smooth": true
+      }
+    ],
+    "bridges": [
+      {
+        "id": "bridge_stone",
+        "name": "Stone Bridge",
+        "kind": "line",
+        "type": "stone",
+        "points": [
+          [1921994, 3221531],
+          [1916020, 3220977]
+        ],
+        "width": 900
+      },
+      {
+        "id": "bridge_ford",
+        "name": "Ford Footbridge",
+        "kind": "line",
+        "type": "pedestrian",
+        "points": [
+          [2162568, 2026584],
+          [2158706, 2025542]
+        ],
+        "width": 300
+      }
     ]
   },
   "pois": [

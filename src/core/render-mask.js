@@ -5,14 +5,22 @@
 import { LAYERS, LAYER_KIND } from './schema.js';
 import { featureGeometry, distToSegment, wallLayout } from './geometry.js';
 
-export const LINE_SOURCES = ['rivers', 'roads', 'rails', 'walls', 'coast'];
+export const LINE_SOURCES = ['rivers', 'roads', 'rails', 'walls', 'coast', 'relief', 'bridges'];
 
 /** All sources that make sense for this document (for UIs and --split). */
 export function maskSources(doc) {
   const out = ['land', 'water', 'zones'];
   for (const t of zoneTypes(doc)) out.push(`zones:${t}`);
   out.push(...LINE_SOURCES);
+  for (const t of reliefTypesUsed(doc)) out.push(`relief:${t}`);
   return out;
+}
+
+/** Relief types used in the map (ridge, fault, cliff, …) — mask sources relief:<type>. */
+export function reliefTypesUsed(doc) {
+  const set = new Set();
+  for (const f of doc.layers.relief || []) if (f.type) set.add(f.type);
+  return [...set];
 }
 
 export function zoneTypes(doc) {
@@ -190,6 +198,9 @@ export function renderMask(doc, opts = {}) {
   } else if (source === 'zones' || source.startsWith('zones:')) {
     const type = source.startsWith('zones:') ? source.slice(6) : null;
     for (const f of layerFeatures('zones')) if (!type || f.type === type) drawFeature(data, F, 'zones', f, opts, W);
+  } else if (source.startsWith('relief:')) {
+    const type = source.slice(7);
+    for (const f of layerFeatures('relief')) if (f.type === type) drawFeature(data, F, 'relief', f, opts, W);
   } else if (LINE_SOURCES.includes(source)) {
     for (const f of layerFeatures(source)) drawFeature(data, F, source, f, opts, W);
   } else if (source.startsWith('feature:')) {
@@ -204,7 +215,7 @@ export function renderMask(doc, opts = {}) {
   } else if (LAYERS.includes(source)) {
     for (const f of layerFeatures(source)) drawFeature(data, F, source, f, opts, W);
   } else {
-    throw new Error(`unknown mask source "${source}" (try land, water, zones, zones:<type>, rivers, roads, rails, walls, feature:<id>)`);
+    throw new Error(`unknown mask source "${source}" (try land, water, zones, zones:<type>, rivers, roads, rails, walls, coast, relief, relief:<type>, bridges, feature:<id>)`);
   }
 
   if (opts.feather > 0) data = boxBlur(data, width, height, opts.feather);

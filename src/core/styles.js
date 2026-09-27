@@ -31,6 +31,27 @@ const ZONE_TYPES = {
   desert: { fill: '#d2b06a' },
 };
 
+/** Relief lines: ridges, faults, cliffs (pattern = how render-svg.js draws them). */
+const reliefTypes = (ridge, fault, cliff) => ({
+  ridge: { stroke: ridge, pattern: 'ridge' },
+  fault: { stroke: fault, pattern: 'fault' },
+  cliff: { stroke: cliff, pattern: 'cliff' },
+});
+
+/**
+ * Bridges, drawn like a topographic map: two deck lines with splayed wing
+ * ticks at the corners and a type abbreviation; `piers` adds squares with a
+ * cross at the corners, `ends: 'hatch'` hatched approaches. width = deck
+ * half-width in px when the feature has no world width.
+ */
+const bridgeTypes = (stroke) => ({
+  pedestrian: { stroke, width: 2.5, abbr: 'ped.' },
+  suspension: { stroke, width: 2.5, abbr: 'susp.' },
+  wood: { stroke, width: 3.5, abbr: 'wood' },
+  stone: { stroke, width: 4, abbr: 'stone', ends: 'hatch' },
+  metal: { stroke, width: 4, abbr: 'met.', piers: true },
+});
+
 const POI_TYPES = {
   village: { color: '#ffd166', icon: 'house' },
   city: { color: '#ef476f', icon: 'castle' },
@@ -60,12 +81,16 @@ export const PRESETS = {
       rails: { stroke: '#a3a7ab', width: 2, dash: '8 4' },
       walls: { stroke: '#d9dcdf', width: 4 },
       zones: { opacity: 0.3 },
+      relief: { stroke: '#b8a58a', width: 1.6 },
+      bridges: { stroke: '#e8e8e8', width: 1.4 },
     },
     lineTypes: LINE_TYPES,
     wallTypes: {
       wall_stone: { stroke: '#d9dcdf', pattern: 'crenel' },
       wall_palisade: { stroke: '#a88b6a', pattern: 'ticks' },
     },
+    reliefTypes: reliefTypes('#b8a58a', '#d9785e', '#a8927a'),
+    bridgeTypes: bridgeTypes('#e8e8e8'),
     zoneTypes: {
       mountains: { fill: '#7a736b', pattern: 'hatch' },
       hills: { fill: '#847d67' },
@@ -100,12 +125,16 @@ export const PRESETS = {
       rails: { stroke: '#b0b0b0', width: 2, dash: '8 4' },
       walls: { stroke: '#e0e0e0', width: 4 },
       zones: { opacity: 0.35 },
+      relief: { stroke: '#c9b08a', width: 1.6 },
+      bridges: { stroke: '#e6eef7', width: 1.4 },
     },
     lineTypes: LINE_TYPES,
     wallTypes: {
       wall_stone: { stroke: '#e0e0e0', pattern: 'crenel' },
       wall_palisade: { stroke: '#b08968', pattern: 'ticks' },
     },
+    reliefTypes: reliefTypes('#c9b08a', '#e07a5f', '#b8966d'),
+    bridgeTypes: bridgeTypes('#e6eef7'),
     zoneTypes: ZONE_TYPES,
     poiTypes: POI_TYPES,
   },
@@ -125,12 +154,16 @@ export const PRESETS = {
       rails: { stroke: '#40362b', width: 2, dash: '8 4' },
       walls: { stroke: '#4a3b2a', width: 4 },
       zones: { opacity: 0.3 },
+      relief: { stroke: '#7a5a38', width: 1.6 },
+      bridges: { stroke: '#2e2416', width: 1.4 },
     },
     lineTypes: LINE_TYPES,
     wallTypes: {
       wall_stone: { stroke: '#4a3b2a', pattern: 'crenel' },
       wall_palisade: { stroke: '#7a5230', pattern: 'ticks' },
     },
+    reliefTypes: reliefTypes('#7a5a38', '#9e2a2b', '#5d4428'),
+    bridgeTypes: bridgeTypes('#2e2416'),
     zoneTypes: {
       mountains: { fill: '#9c7b55', pattern: 'hatch' },
       hills: { fill: '#b59e6a' },
@@ -151,7 +184,7 @@ export const PRESETS = {
   },
 };
 
-const TYPE_GROUPS = ['lineTypes', 'wallTypes', 'zoneTypes', 'poiTypes'];
+const TYPE_GROUPS = ['lineTypes', 'wallTypes', 'zoneTypes', 'reliefTypes', 'bridgeTypes', 'poiTypes'];
 
 function mergeEntry(base = {}, over = {}) {
   return { ...base, ...over };
@@ -186,6 +219,8 @@ export function resolveStyle(style = {}) {
 export function typeGroupForLayer(layer) {
   if (layer === 'zones') return 'zoneTypes';
   if (layer === 'walls') return 'wallTypes';
+  if (layer === 'relief') return 'reliefTypes';
+  if (layer === 'bridges') return 'bridgeTypes';
   return 'lineTypes';
 }
 

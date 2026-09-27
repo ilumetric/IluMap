@@ -10,6 +10,7 @@
   "scripts": {
     "test": "node --test \"test/*.test.js\"",
     "validate": "node tools/ilumap.mjs validate examples/demo/map.json",
+    "bundle": "node tools/bundle.mjs",
     "serve": "python -m http.server 8765"
   },
   "engines": {

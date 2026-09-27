@@ -1,0 +1,32 @@
+# IluMap
+
+> IluMap is a static, browser-based vector map editor for game worlds (islands, zones, rivers, roads, walls, points of interest). The whole map lives in one diff-friendly text file, `map.json`, in world units with stable ids. An AI agent never needs the browser: it reads and edits `map.json` and uses a single-file, dependency-free Node CLI to validate, format, describe the map as text, render SVG, and see what a human changed.
+
+## Quick start
+
+Needs Node 20+ and nothing else:
+
+```bash
+curl -O https://ilumetric.github.io/IluMap/ilumap.mjs
+node ilumap.mjs text map.json
+```
+
+`node ilumap.mjs --help` lists every command (validate, fmt, text, list, svg, mask, terrain, diff, version, and any added later).
+
+## Docs
+
+- [Agent guide](https://ilumetric.github.io/IluMap/docs/AGENT.md): commands, the human–agent loop, file-safety rules
+- [Format reference](https://ilumetric.github.io/IluMap/docs/FORMAT.md): every field of map.json
+- [JSON Schema](https://ilumetric.github.io/IluMap/schema/map.schema.json): machine-checkable format
+- [Example map](https://ilumetric.github.io/IluMap/examples/demo/map.json): a 40 km archipelago with POIs, zones, walls and links
+- [Editor](https://ilumetric.github.io/IluMap/): the browser app the human uses (Open file / Open folder, Save)
+- [Single-file CLI](https://ilumetric.github.io/IluMap/ilumap.mjs): generated bundle of tools/ilumap.mjs
+
+## Rules
+
+- Reference things by id (`mine_old`), never by name or index; ids are `[a-z0-9_]+`, unique, and never change once lore uses them.
+- Add a POI whose exact spot you do not know with `"placed": false` and rough `x`, `y`; the human drags it into place in the editor.
+- After every edit run `node ilumap.mjs fmt map.json` and `node ilumap.mjs validate map.json`.
+- Distances between places: `node ilumap.mjs route map.json <from-id> <to-id>` measures along roads (bridges, rivers, faults on the way); `text` does the same for road/path/rail links.
+- After the human edited the map, run `node ilumap.mjs diff map.json --git` (or `diff old.json new.json`) to see what moved, instead of re-reading everything.
+- Never overwrite a newer file from the human: re-read `map.json` right before editing and write only your change on top of it.

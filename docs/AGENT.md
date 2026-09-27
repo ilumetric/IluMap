@@ -1,76 +1,115 @@
 # Using IluMap as an AI agent
 
-You do not need the browser. `map.json` is the whole map.
+You do not need the browser. `map.json` is the whole map; a single-file CLI
+reads, checks, describes and compares it. If all you have is the site URL
+(https://ilumetric.github.io/IluMap/), start here.
 
-## Read the map
+## Get the CLI
+
+One file, no dependencies, Node 20+:
 
 ```bash
-node tools/ilumap.mjs text map.json            # markdown summary: POIs, zones, distances, links
-node tools/ilumap.mjs text map.json --plain    # plain text
-node tools/ilumap.mjs list map.json --pois --status approved
-node tools/ilumap.mjs svg map.json > map.svg   # render for a human to look at
-node tools/ilumap.mjs validate map.json
-node tools/ilumap.mjs list map.json --ids      # every id and what it is
+curl -O https://ilumetric.github.io/IluMap/ilumap.mjs
+node ilumap.mjs --version        # ilumap <app version> (map format v1)
+node ilumap.mjs --help           # the source of truth for commands and options
 ```
 
-The text summary describes each POI like a person would:
+`ilumap.mjs` is generated from `tools/ilumap.mjs` and `src/core/*` (inside a
+clone of the repo, `node tools/ilumap.mjs …` is the same thing). New commands
+(for example `route`) may appear before this page mentions them: check
+`--help`.
+
+## Commands
+
+```bash
+node ilumap.mjs text map.json                 # the map as markdown: POIs (zone, land/water, nearest POIs
+                                              # with distance and compass direction), zones, lines, walls, links
+node ilumap.mjs text map.json --plain         # plain text
+node ilumap.mjs list map.json --ids           # every id and what it is (--pois --features --links, --json)
+node ilumap.mjs list map.json --pois --unplaced
+node ilumap.mjs validate map.json             # exit 1 on errors
+node ilumap.mjs fmt map.json                  # canonical formatting (key order, one [x, y] per line)
+node ilumap.mjs svg map.json --out map.svg    # render for a human to look at
+node ilumap.mjs mask map.json --source land --size 4096 --out masks/   # PNG masks for Gaea / World Machine / UE
+node ilumap.mjs terrain map.json              # Unreal Mesh Terrain grid (--quad 200 --write stores it)
+node ilumap.mjs route map.json village mine_old # distance along roads, roads used, rivers/faults and bridges on the way (--rail, --json)
+node ilumap.mjs diff old.json new.json        # what changed between two versions
+node ilumap.mjs diff map.json --git [rev]     # the working file against git (default HEAD)
+```
+
+`text` describes each POI like a person would:
 
 ```
 - **Old Mine** (`mine_old`, mine, approved) — zone: Northern Mountains, on land.
-  1.2 km NE of Village (`village`), 4.8 km N of Riverport (`city_riverport`).
-  Links: road → village ("Miners road").
+  8.5 km N of Millbrook (`village`), 13.9 km NW of Old Watchtower (`ruin_watchtower`).
+  Links: road → village ("Miners road"); rail → city_riverport ("Ore Line").
 ```
 
-## Add or move things
+`diff` says what moved and where it is now (`--plain`, `--json`, `--out` work
+as usual; exit code 0 unless something failed):
 
-Edit `map.json` directly. Rules:
+```
+## POIs (2)
 
-* Ids are `[a-z0-9_]+` and unique across features, POIs, gates and (optional) link ids.
-  A link's `feature` must be an existing feature id; `from`/`to` must be POI or gate ids.
-* Add a POI with `"placed": false` if you only know the rough position; the
-  human will drag it into place in the tool.
-* Keep the key order and one `[x, y]` per line so the diff stays small. Run
-  `node tools/ilumap.mjs fmt map.json` to canonicalise after editing.
-* Run `node tools/ilumap.mjs validate map.json` before committing.
-* Reference POIs from lore by id (`mine_old`), never by name or index.
+- Moved **Lumber Camp** (`lumber_camp`) 300 m NE — now in Central Plains (was Westwood).
+- Placed **Drowned Shrine** (`shrine_swamp`) on the map — in Saltmarsh, 4.9 km NW of **Riverport** (`city_riverport`).
+```
+
+## Working together with a human
+
+1. **Agent** adds POIs (lore places, quest spots) with rough `x`, `y` and
+   `"placed": false`, references them from lore by id, runs `fmt` and
+   `validate`, commits or hands the file over.
+2. **Human** opens the editor (https://ilumetric.github.io/IluMap/) →
+   *Open file* (or *Open folder* for a project with a background image), drags
+   the POIs from the *Unplaced* list onto the map, draws roads or zones, and
+   presses *Save*.
+3. **Agent** runs `node ilumap.mjs diff map.json --git` (or
+   `diff old.json map.json` against the copy it last saw) to learn what moved
+   and where things ended up, then `text` if it needs the full picture.
+
+## File safety
+
+* The editor keeps a **browser working copy** of the map (autosaved in the
+  browser); only the human's *Save* writes `map.json`. Until then the file on
+  disk is the old version.
+* **Re-read `map.json` right before you edit it.** Never keep a copy in memory
+  across turns and write it back later: that silently reverts what the human
+  did in the meantime. Change only what you mean to change.
+* If the human may have unsaved edits, ask them to save first. The editor
+  notices when the file changed on disk (maps opened via *Open folder*, or a
+  file opened again) and offers to reload it.
+* Commit (or copy) the file before large edits so `diff --git` / `diff old new`
+  can show the result.
+
+## Editing rules
+
+* Ids are `[a-z0-9_]+` and unique across features, POIs, wall gates and
+  (optional) link ids. Never rename an id that lore references.
+* A link's `from` / `to` are POI or gate ids; `feature` is an existing feature id.
+* Coordinates are world units (`meta.units`, cm by default); north is `−y`
+  unless `meta.flipY` is true. `text` and `diff` print real distances.
+* Keep the key order and one `[x, y]` per line; `fmt` fixes both.
 * Custom fields go under an `x_` prefix and survive round-trips.
-
-## Terrain grid (Unreal Mesh Terrain)
-
-```bash
-node tools/ilumap.mjs terrain map.json                    # size, resolution, quad size, sections, values for Unreal
-node tools/ilumap.mjs terrain map.json --quad 200 --write # 2 m quads, store the grid in map.json
-node tools/ilumap.mjs terrain map.json --sections explicit --section-res 256,256 --quad 400 --write
-node tools/ilumap.mjs terrain map.json --json             # machine-readable
-```
-
-The grid lives in `map.json → terrain`; its size is the size of `view.bounds`.
-`text` mentions it in the header ("Terrain grid … one quad 2 m …"), so use it
-when you need real distances in quads or sections.
-
-## Masks for heightmap generation (Gaea, World Machine, UE)
-
-```bash
-node tools/ilumap.mjs mask map.json --source land --size 4096 --out masks/
-node tools/ilumap.mjs mask map.json --source zones --split --size 4096 --out masks/
-node tools/ilumap.mjs mask map.json --source rivers --feather 8 --out masks/
-```
-
-Each run writes `masks.json` next to the PNGs (bounds, pixel size, world units
-per pixel, flipY) so an importer knows the scale. Pixel (0,0) is the top-left of
-the bounds as seen on screen (min y when `flipY` is false, max y when true).
+* Full field reference: [FORMAT.md](FORMAT.md); JSON Schema:
+  [schema/map.schema.json](../schema/map.schema.json).
 
 ## Programmatic use
 
-The same modules the editor uses are plain ES modules:
+The bundle is a CLI, not a library: it cannot be imported. From your own
+code, either call the CLI (`--json` on `list` and `diff`, `terrain --json`),
+or clone the repository and import the pure ES modules in `src/core/`
+(no DOM, no dependencies):
 
 ```js
 import { readFileSync, writeFileSync } from 'node:fs';
 import { normalize, serialize, validate, nextId } from './src/core/model.js';
+import { diffText } from './src/core/diff.js';
 
-const doc = normalize(readFileSync('map.json', 'utf8'));
-const id = nextId(doc, 'poi');
-doc.pois.push({ id, name: 'Smugglers Cove', x: 1200000, y: 2900000, type: 'poi', status: 'idea', placed: false });
+const before = readFileSync('map.json', 'utf8');       // re-read right before editing
+const doc = normalize(before);
+doc.pois.push({ id: nextId(doc, 'poi'), name: 'Smugglers Cove', x: 1200000, y: 2900000, type: 'poi', status: 'idea', placed: false });
 if (!validate(doc).ok) throw new Error('invalid');
 writeFileSync('map.json', serialize(doc));
+console.log(diffText(JSON.parse(before), doc));
 ```

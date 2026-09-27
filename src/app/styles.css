@@ -589,6 +589,16 @@ kbd {
 .cp-rsw { width: 20px; height: 20px; padding: 0; border-radius: 5px; border: 1px solid var(--border); cursor: pointer; }
 .cp-rsw:hover { transform: scale(1.12); }
 
+/* links: crossings without a bridge on a road link */
+.link-warn { color: var(--accent-yellow); }
+
+/* ---------- changes on disk (session.js) ---------- */
+.disk-diff { margin: 4px 0 10px; }
+.disk-diff-pre {
+  margin: 4px 0 0; max-height: 44vh; overflow: auto; padding: 10px 12px; white-space: pre-wrap;
+  font-size: 11.5px; line-height: 1.55; background: var(--input); border: 1px solid var(--input-border); border-radius: var(--radius-ctl);
+}
+
 /* ---------- menus & popovers ---------- */
 #menus { position: fixed; inset: 0; pointer-events: none; z-index: 300; } /* above dialogs: dropdowns open inside them */
 .menu-pop {
@@ -891,7 +901,7 @@ table.keys td:first-child { white-space: nowrap; width: 1%; }
   .dock-label { display: none; }
 }
 @container stage (max-width: 860px) {
-  .pill-btn span { display: none; }
+  .pill-btn > span:not(.ico) { display: none; }
   .pill-btn { padding: 0 8px; }
   #minimap { display: none; }
   #dock-left { bottom: 60px; }

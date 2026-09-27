@@ -4,6 +4,10 @@ import { store, change, select } from '../state.js';
 import { LINK_TYPES, LAYERS } from '../../core/schema.js';
 import { findById } from '../../core/model.js';
 import { distance } from '../../core/geometry.js';
+import { buildNetwork, route } from '../../core/routes.js';
+
+/** Link types measured along roads / rails (same as the text export for agents). */
+const ROUTE_LAYERS = { road: ['roads', 'bridges'], path: ['roads', 'bridges'], rail: ['rails', 'bridges'] };
 import { t, label } from '../i18n/index.js';
 import { fmtLength } from '../i18n/format.js';
 import { layerLabel } from '../ui/layer-meta.js';
@@ -23,13 +27,24 @@ export function renderLinks(poiId) {
   const self = findById(doc, poiId)?.item;
 
   const list = h('div', { class: 'link-list' });
+  const networks = {};
   if (!links.length) list.append(h('p', { class: 'muted small' }, t('links.empty')));
   for (const k of links) {
     const out = k.from === poiId;
     const other = out ? k.to : k.from;
     const oh = findById(doc, other);
     let dist = '';
-    if (self && oh?.kind === 'poi' && self.placed !== false && oh.item.placed !== false) {
+    let warn = '';
+    const onGround = ROUTE_LAYERS[k.type];
+    if (onGround) {
+      networks[k.type] ||= buildNetwork(doc, { layers: onGround });
+      const r = route(doc, poiId, other, { layers: onGround, network: networks[k.type] });
+      if (r?.ok) {
+        dist = t(k.type === 'rail' ? 'links.byRail' : 'links.byRoad', { length: fmtLength(r.length, doc.meta) });
+        const open = r.crossings.filter((c) => !c.bridge && c.kind !== 'ridge');
+        if (open.length) warn = t('links.unbridged', { names: open.map((c) => c.name || c.featureId).join(', ') });
+      } else if (r) dist = t(r.reason === 'disconnected' ? 'links.noConnection' : 'links.noRoadNear');
+    } else if (self && oh?.kind === 'poi' && self.placed !== false && oh.item.placed !== false) {
       dist = fmtLength(distance([self.x, self.y], [oh.item.x, oh.item.y]), doc.meta);
     }
     list.append(h('div', { class: 'link-row' },
@@ -37,7 +52,8 @@ export function renderLinks(poiId) {
       h('span', { class: 'link-arrow' }, out ? '→' : '←'),
       h('button', { class: 'link-target', title: t('links.select', { id: other }), onclick: () => { if (oh?.kind === 'poi') select(other); else if (oh?.kind === 'gate') select(oh.feature.id); } },
         endpointName(other), h('small', {}, ` ${other}`)),
-      h('span', { class: 'link-meta muted small' }, [k.name ? `“${k.name}”` : '', k.feature ? t('links.via', { feature: k.feature }) : '', dist].filter(Boolean).join(' · ')),
+      h('span', { class: 'link-meta muted small' }, [k.name ? `“${k.name}”` : '', k.feature ? t('links.via', { feature: k.feature }) : '', dist].filter(Boolean).join(' · '),
+        warn ? h('span', { class: 'link-warn', title: warn }, ` · ⚠ ${warn}`) : null),
       h('button', {
         class: 'icon-btn danger', title: t('links.remove'), 'aria-label': t('links.remove'),
         onclick: () => change((d) => {

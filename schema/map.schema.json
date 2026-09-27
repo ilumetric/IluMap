@@ -101,8 +101,11 @@
         "width": { "type": "number", "minimum": 0 },
         "dash": { "type": ["string", "null"] },
         "opacity": { "type": "number", "minimum": 0, "maximum": 1 },
-        "pattern": { "type": "string", "description": "zones: hatch | dots; walls: crenel | ticks" },
-        "icon": { "$ref": "#/$defs/poiIcon" }
+        "pattern": { "type": "string", "description": "zones: hatch | dots; walls: crenel | ticks; relief: ridge | fault | cliff" },
+        "icon": { "$ref": "#/$defs/poiIcon" },
+        "abbr": { "type": "string", "description": "bridge types: label drawn next to the deck" },
+        "piers": { "type": "boolean", "description": "bridge types: squares with a cross at the corners" },
+        "ends": { "enum": ["hatch", null], "description": "bridge types: hatched approaches" }
       }
     },
     "styleMap": { "type": "object", "additionalProperties": { "$ref": "#/$defs/styleEntry" } },
@@ -117,6 +120,8 @@
         "lineTypes": { "$ref": "#/$defs/styleMap" },
         "wallTypes": { "$ref": "#/$defs/styleMap" },
         "zoneTypes": { "$ref": "#/$defs/styleMap" },
+        "reliefTypes": { "$ref": "#/$defs/styleMap" },
+        "bridgeTypes": { "$ref": "#/$defs/styleMap" },
         "poiTypes": { "$ref": "#/$defs/styleMap" }
       }
     },
@@ -195,7 +200,9 @@
         "roads": { "type": "array", "items": { "$ref": "#/$defs/lineFeature" } },
         "rails": { "type": "array", "items": { "$ref": "#/$defs/lineFeature" } },
         "walls": { "type": "array", "items": { "$ref": "#/$defs/wallFeature" } },
-        "zones": { "type": "array", "items": { "$ref": "#/$defs/polygonFeature" } }
+        "zones": { "type": "array", "items": { "$ref": "#/$defs/polygonFeature" } },
+        "relief": { "type": "array", "items": { "$ref": "#/$defs/lineFeature" }, "description": "Ridges, faults, cliffs (type ridge | fault | cliff; cliff teeth on the left of the drawing direction)" },
+        "bridges": { "type": "array", "items": { "$ref": "#/$defs/lineFeature" }, "description": "Bridges: first to last point spans the obstacle; type pedestrian | suspension | wood | stone | metal; width = deck width in world units" }
       }
     },
     "poi": {

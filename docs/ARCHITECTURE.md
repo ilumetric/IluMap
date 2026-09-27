@@ -69,6 +69,8 @@ src/
     text-export.js      map.json -> markdown/plain text summary for agents
     styles.js           style presets (graphite, blueprint, parchment) and defaults
     terrain.js          Unreal Mesh Terrain grid calculator (resolution, quads, sections)
+    routes.js           road / rail network, shortest routes, crossings (rivers, faults, water) and bridges
+    color.js            hex / RGB / HSV conversions (colour picker)
 tools/
   ilumap.mjs            CLI: validate | text | svg | mask | terrain | fmt | list
 schema/map.schema.json  JSON Schema (draft 2020-12) of the map format
@@ -308,6 +310,30 @@ panels, `F2` rename, arrows nudge the selection. Grid snapping follows the
 magnet toggle (bottom right); holding `Shift` inverts it while drawing or
 dragging. A feature must be selected before a drag moves it (so a
 click on a big island never moves it by accident); POIs move immediately.
+
+## Road routes (`src/core/routes.js`)
+
+`buildNetwork(doc, { layers })` turns the line layers (roads + bridges, or
+rails + bridges) into a graph: vertices of the drawn geometry, endpoints
+snapped within a tolerance (T-junctions), crossings of different features of
+the same mode (road × road, not road × rail). `route(doc, from, to)` joins the
+two endpoints (POIs or wall gates) to the network with a short straight access
+leg and runs Dijkstra; `crossings(doc, polyline)` lists rivers, faults,
+cliffs, ridges and lake entries on the way and whether a bridge spans each;
+`describeRoute()` is the one-line English summary used by the text export,
+the CLI and (localised pieces of it) the Inspector's link list.
+
+## Folders and changes on disk (`src/app/disk.js`, `session.js`)
+
+"Open folder" (Chromium's File System Access API) keeps a directory handle
+with the project in IndexedDB, plus the path of the map's folder inside it.
+`view.background.src` then resolves relative to the map (the freshest file
+wins over the stored copy), and the background popover can pick an image from
+the folder, storing a relative path. When the map is linked to a file,
+returning to the tab re-reads it: an unchanged working copy reloads the new
+version (with a "Show changes" diff), unsaved edits get a warning; Save
+checks again and offers *Load disk version* / *Overwrite* with the diff
+(`core/diff.js`) of what changed on disk.
 
 ## Terrain grid (`src/core/terrain.js`)
 

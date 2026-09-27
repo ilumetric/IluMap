@@ -97,7 +97,7 @@ function childContext(ctx, key) {
     case 'calibrationList':
       return 'calibrationPair';
     case 'style':
-      if (key === 'layers' || key === 'lineTypes' || key === 'wallTypes' || key === 'zoneTypes' || key === 'poiTypes') return 'styleMap';
+      if (key === 'layers' || key === 'lineTypes' || key === 'wallTypes' || key === 'zoneTypes' || key === 'reliefTypes' || key === 'bridgeTypes' || key === 'poiTypes') return 'styleMap';
       return null;
     case 'styleMap':
       return 'styleEntry';

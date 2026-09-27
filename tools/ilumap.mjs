@@ -1,23 +1,35 @@
 #!/usr/bin/env node
-// IluMap command line: validate | text | svg | mask | terrain | fmt | list
+// IluMap command line: validate | text | svg | mask | terrain | fmt | list | diff | version
 // No dependencies; imports the same core modules as the browser app.
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { deflateSync } from 'node:zlib';
-import { normalize, serialize, validate, zoneOf } from '../src/core/model.js';
+import { execFileSync } from 'node:child_process';
+import { realpathSync } from 'node:fs';
+import { relative, sep } from 'node:path';
+import { normalize, serialize, validate, zoneOf, findById } from '../src/core/model.js';
+import { route, describeRoute } from '../src/core/routes.js';
 import { LAYERS } from '../src/core/schema.js';
 import { toText } from '../src/core/text-export.js';
 import { renderSvg } from '../src/core/render-svg.js';
 import { renderMask, maskFileName, maskSidecar, stringifySidecar, zoneTypes } from '../src/core/render-mask.js';
 import { encodePng } from '../src/core/png.js';
+import { diffMaps, formatDiff } from '../src/core/diff.js';
+import { VERSION } from '../src/core/schema.js';
+import { APP_VERSION } from '../src/app/version.js';
 import {
   terrainOf, computeTerrain, terrainBlock, resolutionForQuad, explicitFor, quadOptions, unrealSettingsText, terrainSize,
 } from '../src/core/terrain.js';
 
-const HELP = `IluMap CLI — map.json tools (no dependencies)
+// How the user invoked us: tools/ilumap.mjs in the repo, ilumap.mjs for the single-file bundle.
+const CLI = /(^|[\\/])tools[\\/]ilumap\.mjs$/.test(process.argv[1] || '') ? 'tools/ilumap.mjs' : 'ilumap.mjs';
+const VERSION_TEXT = `ilumap ${APP_VERSION} (map format v${VERSION})\n`;
 
-Usage: node tools/ilumap.mjs <command> <map.json> [options]
+const HELP = `IluMap CLI ${APP_VERSION} — map.json tools (no dependencies, map format v${VERSION})
+
+Usage: node ${CLI} <command> <map.json> [options]
+       node ${CLI} --version | --help
 
 Commands:
   validate <map>             Check the file against the format rules. Exit code 1 on errors.
@@ -34,7 +46,8 @@ Commands:
       --layers a,b,c           only these layers (land,water,coast,rivers,roads,rails,walls,zones,pois,labels)
       --out <file>
   mask <map>                 Greyscale PNG masks for heightmap tools (Gaea, World Machine, UE).
-      --source <s>             land | water | zones | zones:<type> | rivers | roads | rails | walls | coast | feature:<id>
+      --source <s>             land | water | zones | zones:<type> | rivers | roads | rails | walls | coast | relief |
+                               relief:<type> | bridges | feature:<id>
                                (repeatable or comma separated; default land)
       --size <px>              longest side in pixels (default 1024); aspect follows the bounds
       --width <px> --height <px>
@@ -44,6 +57,10 @@ Commands:
       --stroke <units>         line width override in world units (lines only)
       --split                  with --source zones: one file per zone type
       --out <dir>              output directory (default .); writes masks.json next to the PNGs
+  route <map> <from> <to>    Distance along roads (or rails with --rail) between two POIs / gates, the roads used and
+                             what lies on the way: rivers, faults, cliffs, lakes, with the bridges over them.
+      --rail                   travel on rails instead of roads
+      --json                   JSON output (length, straight, path, features, crossings)
   terrain <map>              Unreal Mesh Terrain grid calculator: size (from view.bounds), resolution,
                              quad size, sections, heightmap size, values to type into Unreal.
       --quad <units>           pick the resolution that gives quads of this size (e.g. 100 = 1 m)
@@ -62,15 +79,25 @@ Commands:
       --pois | --features | --links | --ids   (default --pois)
       --status <s> --type <t> --zone <id> --layer <name> --unplaced --placed
       --json                   JSON output
+  diff <old> <new>           What changed between two versions of a map: POIs moved (distance, compass
+                             direction, zone), placed, added, removed, renamed, re-typed; features added,
+                             removed, reshaped (points, length / area, centre shift); links; map settings.
+  diff <map> --git [rev]     Compare the file with its committed version (git show <rev>:<path>, default HEAD).
+      --plain                  plain text instead of markdown
+      --json                   structured JSON
+      --out <file>             write to a file instead of stdout
+  version                    Print the CLI and map format versions (same as --version / -v).
 
 Examples:
-  node tools/ilumap.mjs validate examples/demo/map.json
-  node tools/ilumap.mjs text examples/demo/map.json --plain
-  node tools/ilumap.mjs svg examples/demo/map.json --width 1600 > map.svg
-  node tools/ilumap.mjs mask examples/demo/map.json --source land --size 4096 --out masks/
-  node tools/ilumap.mjs mask examples/demo/map.json --source zones --split --out masks/
-  node tools/ilumap.mjs list examples/demo/map.json --pois --status approved
-  node tools/ilumap.mjs terrain examples/demo/map.json --quad 400 --sections explicit --section-res 256,256
+  node ${CLI} validate examples/demo/map.json
+  node ${CLI} diff examples/demo/map.json --git            # what changed since the last commit
+  node ${CLI} diff old/map.json map.json --plain
+  node ${CLI} text examples/demo/map.json --plain
+  node ${CLI} svg examples/demo/map.json --width 1600 > map.svg
+  node ${CLI} mask examples/demo/map.json --source land --size 4096 --out masks/
+  node ${CLI} mask examples/demo/map.json --source zones --split --out masks/
+  node ${CLI} list examples/demo/map.json --pois --status approved
+  node ${CLI} terrain examples/demo/map.json --quad 400 --sections explicit --section-res 256,256
 `;
 
 function parseArgs(argv) {
@@ -79,6 +106,7 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '-h') { opts.help = true; continue; }
+    if (a === '-v') { opts.version = true; continue; }
     if (a.startsWith('--')) {
       const eq = a.indexOf('=');
       let key = eq > 0 ? a.slice(2, eq) : a.slice(2);
@@ -89,7 +117,7 @@ function parseArgs(argv) {
         val = argv[++i];
         if (val === undefined) throw new Error(`--${key} needs a value`);
       }
-      if (!takesValue) val = true;
+      if (!takesValue) val = key === 'git' && val !== undefined ? val : true; // --git=<rev>
       if (key === 'source') (opts.source ||= []).push(...String(val).split(',').filter(Boolean));
       else opts[key] = val;
       continue;
@@ -131,7 +159,75 @@ function intPair(v, name) {
   return p;
 }
 
+/** The committed text of `file` at `rev` (git show <rev>:<path relative to the repo root>). */
+function gitShow(file, rev) {
+  const abs = resolve(file);
+  if (!existsSync(abs)) throw new Error(`cannot read ${file}`);
+  const git = (args, cwd) => {
+    try {
+      return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 512 * 1024 * 1024 });
+    } catch (e) {
+      if (e.code === 'ENOENT') throw new Error('git is not installed or not on PATH (compare two files instead: diff <old.json> <new.json>)');
+      const err = new Error(String(e.stderr || e.message).trim().split('\n')[0].replace(/^fatal: /, ''));
+      err.git = true;
+      throw err;
+    }
+  };
+  let top;
+  try { top = git(['rev-parse', '--show-toplevel'], dirname(abs)).trim(); } catch (e) {
+    if (!e.git) throw e;
+    throw new Error(`${file} is not inside a git repository (${e.message}); compare two files instead: diff <old.json> <new.json>`);
+  }
+  const path = relative(realpathSync(top), realpathSync(abs)).split(sep).join('/');
+  try { return git(['show', `${rev}:${path}`], top); } catch (e) {
+    if (!e.git) throw e;
+    throw new Error(`git show ${rev}:${path}: ${e.message}`);
+  }
+}
+
+function parseJson(text, label) {
+  try { return JSON.parse(text); } catch (e) { throw new Error(`${label} is not valid JSON: ${e.message}`); }
+}
+
 const commands = {
+  route(file, o, pos = []) {
+    const [, , from, to] = pos;
+    if (!from || !to) throw new Error('usage: route <map.json> <from-id> <to-id> [--rail] [--json]');
+    const { json } = readMap(file);
+    const doc = normalize(json);
+    const layers = o.rail ? ['rails', 'bridges'] : ['roads', 'bridges'];
+    if (o.json) {
+      const r = route(doc, from, to, { layers });
+      if (!r) throw new Error(`unknown or unplaced id: ${findById(doc, from) ? to : from}`);
+      process.stdout.write(`${JSON.stringify(r, null, 2)}
+`);
+      return r.ok ? 0 : 1;
+    }
+    process.stdout.write(`${describeRoute(doc, from, to, { layers })}
+`);
+    return 0;
+  },
+
+  diff(file, o, pos = []) {
+    if (!file) throw new Error('usage: diff <old.json> <new.json>  or  diff <map.json> --git [rev]');
+    let before;
+    let after;
+    if (o.git !== undefined && o.git !== false) {
+      const rev = typeof o.git === 'string' ? o.git : pos[2] || 'HEAD';
+      if (pos.length > 3 || (typeof o.git === 'string' && pos[2])) throw new Error('usage: diff <map.json> --git [rev]');
+      after = readMap(file).json;
+      before = parseJson(gitShow(file, rev), `${file} at ${rev}`);
+    } else {
+      if (!pos[2] || pos.length > 3) throw new Error('usage: diff <old.json> <new.json>  or  diff <map.json> --git [rev]');
+      before = readMap(file).json;
+      after = readMap(pos[2]).json;
+    }
+    const d = diffMaps(before, after);
+    if (o.json) output(`${JSON.stringify(d, null, 2)}\n`, o.out);
+    else output(formatDiff(d, { format: o.plain ? 'plain' : 'markdown' }), o.out);
+    return 0;
+  },
+
   terrain(file, o) {
     const { json } = readMap(file);
     const doc = normalize(json);
@@ -291,7 +387,7 @@ const commands = {
     const out = serialize(normalize(json));
     if (o.check) {
       const same = out === text.replace(/\r\n/g, '\n');
-      console.log(same ? `${file}: canonical` : `${file}: not canonical (run: node tools/ilumap.mjs fmt ${file})`);
+      console.log(same ? `${file}: canonical` : `${file}: not canonical (run: node ${CLI} fmt ${file})`);
       return same ? 0 : 1;
     }
     if (o.stdout) { process.stdout.write(out); return 0; }
@@ -350,11 +446,12 @@ async function main() {
   try { parsed = parseArgs(process.argv.slice(2)); } catch (e) { console.error(e.message); return 2; }
   const { pos, opts } = parsed;
   const cmd = pos[0];
+  if (opts.version || cmd === 'version') { process.stdout.write(VERSION_TEXT); return 0; }
   if (!cmd || opts.help || cmd === 'help') { process.stdout.write(HELP); return cmd || opts.help ? 0 : 2; }
   const fn = commands[cmd];
   if (!fn) { console.error(`unknown command "${cmd}"\n`); process.stdout.write(HELP); return 2; }
   try {
-    return fn(pos[1], opts) ?? 0;
+    return fn(pos[1], opts, pos) ?? 0;
   } catch (e) {
     console.error(`ilumap ${cmd}: ${e.message}`);
     return 1;

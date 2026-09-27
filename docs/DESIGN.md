@@ -168,6 +168,12 @@ they live in `core/render-svg.js` because exports need them.
   (`dom.js`, used by `renderKeepingFocus`, the POI list and the maps list)
   restores every scrolled ancestor, so editing deep in a long panel never
   jumps back to the top.
+* **Bridge tool** (`B`, in the draw group after Wall): click one bank, then
+  the other; the tool finishes by itself after two points. Its toolbar icon
+  is the bridge symbol (two deck lines with splayed wings). The dock has
+  chips for Relief (`Rf` / `Рл`) and Bridges (`Br` / `Мс`); the type picker
+  chooses ridge / fault / cliff or the bridge type. Style tab: *Relief types*
+  (colour) and *Bridge types* (colour, label, piers, ramps).
 * **Hand tool** (and Space / a pan in progress): map items get no hover
   highlight and keep the grab cursor.
 * **POI icon picker** (`ui/poi-icons.js`): a 300px popover with the map

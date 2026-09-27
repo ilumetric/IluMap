@@ -8,7 +8,7 @@ import { icon } from './icons.js';
 import { openMenu } from './menu.js';
 import { t, getLang, setLang, onLangChange, LANGUAGES } from '../i18n/index.js';
 import {
-  projectList, openProject, newMapCommand, openFileCommand, renameProject, duplicateProject, exportProjectJson, deleteProject,
+  projectList, openProject, newMapCommand, openFileCommand, openFolderCommand, renameProject, duplicateProject, exportProjectJson, deleteProject,
 } from '../session.js';
 
 function relTime(ts) {
@@ -53,7 +53,8 @@ export function mountSidebar({ openSettings }) {
   const item = (ico, onclick, extra = {}) => h('button', { type: 'button', class: 'sb-item', onclick, ...extra }, icon(ico), h('span', { class: 'sb-item-label' }));
   const newItem = item('newMap', () => newMapCommand());
   const searchItem = item('search', () => focusSearch());
-  const openItem = item('folderOpen', () => openFileCommand());
+  const openItem = item('fileOpen', () => openFileCommand());
+  const folderItem = item('folderOpen', () => openFolderCommand());
   const settingsItem = item('settings', () => openSettings());
   const mapsLabel = h('div', { class: 'sb-label' });
   const langCode = h('span', { class: 'sb-lang-code' });
@@ -64,7 +65,7 @@ export function mountSidebar({ openSettings }) {
 
   root.append(
     h('div', { class: 'sb-head' }, h('div', { class: 'sb-brand' }, icon('logo'), h('span', {}, 'IluMap')), collapseBtn),
-    h('nav', { class: 'sb-actions' }, newItem, searchItem, searchWrap, openItem),
+    h('nav', { class: 'sb-actions' }, newItem, searchItem, searchWrap, openItem, folderItem),
     mapsLabel,
     list,
     h('div', { class: 'sb-foot' }, settingsItem, langBtn),
@@ -84,6 +85,8 @@ export function mountSidebar({ openSettings }) {
     set(newItem, t('sidebar.newMap'));
     set(searchItem, t('sidebar.search'), 'Ctrl+K');
     set(openItem, t('sidebar.openFile'), t('sidebar.openFileTitle'));
+    set(folderItem, t('sidebar.openFolder'), t('sidebar.openFolderTitle'));
+    folderItem.hidden = !('showDirectoryPicker' in window);
     set(settingsItem, t('sidebar.settings'));
     mapsLabel.textContent = t('sidebar.maps');
     const cur = LANGUAGES.find((l) => l.code === getLang());

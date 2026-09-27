@@ -99,10 +99,11 @@ export function savePrefs() {
  * `savedText` (the file content last written or read) restores the dirty state;
  * otherwise `saved` says whether the document matches its file.
  */
-export function setDoc(doc, { name, handle = null, baseUrl = null, saved = true, savedText = null } = {}) {
+export function setDoc(doc, { name, handle = null, baseUrl = null, dir = null, saved = true, savedText = null } = {}) {
   store.doc = normalize(doc);
   store.selection = new Set();
-  store.file = { handle, name: name || 'map.json', baseUrl };
+  // dir: { handle, mapDir } when the map was opened through "Open folder" (disk.js)
+  store.file = { handle, name: name || 'map.json', baseUrl, dir };
   undoStack = [];
   redoStack = [];
   pending = null;
@@ -232,7 +233,7 @@ export function setTool(id) {
 export function setActiveLayer(layer) {
   if (!LAYERS.includes(layer)) return;
   store.activeLayer = layer;
-  if (LAYER_KIND[layer] === 'line' && layer !== 'walls') store.prefs.lastLineLayer = layer;
+  if (LAYER_KIND[layer] === 'line' && layer !== 'walls' && layer !== 'bridges') store.prefs.lastLineLayer = layer;
   if (LAYER_KIND[layer] === 'polygon') store.prefs.lastPolygonLayer = layer;
   savePrefs();
   emit('layers');

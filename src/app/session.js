@@ -10,7 +10,8 @@ import { store, on, emit, setDoc, emptyDoc, change, savePrefs } from './state.js
 import { normalize, serialize } from '../core/model.js';
 import { LAND_MODES } from '../core/schema.js';
 import { PRESETS } from '../core/styles.js';
-import { parseMapText, fetchMapText, resolveBackground, attachBackgroundFile, exportJson, jsonPickerTypes } from './io.js';
+import { parseMapText, fetchMapText, resolveBackground, attachBackgroundFile, exportJson, jsonPickerTypes, setBeforeSave } from './io.js';
+import { folderSupported, findMaps, findImages, permissionOf, requestPermission, relativePath } from './disk.js';
 import { toast, confirmDialog, openDialog, download, h } from './dom.js';
 import { t, label } from './i18n/index.js';
 
@@ -48,6 +49,8 @@ function recordFromStore(prev) {
     fileName: store.file.name || 'map.json',
     baseUrl: store.file.baseUrl || undefined,
     fileHandle: store.file.handle || undefined,
+    dirHandle: store.file.dir?.handle || undefined,
+    mapDir: store.file.dir?.mapDir || undefined,
     updatedAt: text !== prev.doc || !prev.updatedAt ? Date.now() : prev.updatedAt,
   };
   for (const k of Object.keys(rec)) if (rec[k] === undefined) delete rec[k];
@@ -148,7 +151,10 @@ async function openRecord(rec) {
   loading = true;
   store.project = rec;
   try {
-    setDoc(doc, { name: rec.fileName || 'map.json', handle: rec.fileHandle || null, baseUrl: rec.baseUrl || null, savedText: rec.savedText ?? rec.doc });
+    setDoc(doc, {
+      name: rec.fileName || 'map.json', handle: rec.fileHandle || null, baseUrl: rec.baseUrl || null, savedText: rec.savedText ?? rec.doc,
+      dir: rec.dirHandle ? { handle: rec.dirHandle, mapDir: rec.mapDir || [] } : null,
+    });
   } finally {
     loading = false;
   }
@@ -169,13 +175,14 @@ export async function openProject(id) {
 }
 
 /** Store a new project for `doc` and (by default) open it. */
-async function createProject(doc, { fileName = 'map.json', handle = null, baseUrl = null, savedText = null, open = true } = {}) {
+async function createProject(doc, { fileName = 'map.json', handle = null, baseUrl = null, dir = null, savedText = null, open = true } = {}) {
   if (open && !(await leaveCurrent())) return null;
   const text = serialize(normalize(doc));
   const now = Date.now();
   const rec = { id: P.newId(), name: doc.meta?.name || 'Untitled', createdAt: now, updatedAt: now, doc: text, savedText: savedText ?? text, fileName };
   if (baseUrl) rec.baseUrl = baseUrl;
   if (handle) rec.fileHandle = handle;
+  if (dir) { rec.dirHandle = dir.handle; rec.mapDir = dir.mapDir; }
   try { await P.put(rec); } catch (e) { toast(t('toast.projectStoreFailed', { error: e.message }), { type: 'error' }); }
   upsertCache(rec);
   if (open) await openRecord(rec);
@@ -183,11 +190,11 @@ async function createProject(doc, { fileName = 'map.json', handle = null, baseUr
 }
 
 /** Import map.json text into a new project. */
-async function importText(text, { name = 'map.json', handle = null, baseUrl = null, quiet = false } = {}) {
+async function importText(text, { name = 'map.json', handle = null, baseUrl = null, dir = null, quiet = false } = {}) {
   const doc = parseMapText(text, name);
   if (!doc) return null;
   const canonical = serialize(doc);
-  const rec = await createProject(doc, { fileName: name, handle, baseUrl, savedText: canonical });
+  const rec = await createProject(doc, { fileName: name, handle, baseUrl, dir, savedText: canonical });
   if (rec && !quiet && canonical !== text.replace(/\r\n/g, '\n')) {
     toast(t('toast.canonical'), { timeout: 4500 });
   }
@@ -201,7 +208,7 @@ async function reloadFromDisk(handle, text) {
   const canonical = serialize(doc);
   loading = true;
   try {
-    setDoc(doc, { name: handle.name, handle, baseUrl: null, savedText: canonical });
+    setDoc(doc, { name: handle.name, handle, baseUrl: null, dir: store.file.dir || null, savedText: canonical });
   } finally {
     loading = false;
   }
@@ -222,6 +229,165 @@ async function focusExisting(rec, handle, text) {
     type: 'warn', timeout: 12000,
     actions: [{ label: t('toast.loadDiskVersion'), onClick: () => reloadFromDisk(handle, text) }],
   });
+}
+
+// --- the linked file changed on disk (an agent edited it, git pull …) ------------------
+
+/** The linked file's text when it differs from what this copy last loaded / saved, else null. Never prompts. */
+async function readExternal() {
+  const handle = store.file.handle;
+  if (!handle) return null;
+  if ((await permissionOf(handle)) !== 'granted') return null;
+  try {
+    const text = await (await handle.getFile()).text();
+    let canonical;
+    try { canonical = serialize(normalize(text)); } catch { canonical = text; }
+    return canonical === store.savedText ? null : { text, canonical, handle };
+  } catch { return null; }
+}
+
+/** What changed on disk compared with this copy's last known file (text for the dialog), '' when unavailable. */
+async function diskChangesText(ext) {
+  try {
+    const { diffText } = await import('../core/diff.js');
+    return diffText(normalize(store.savedText), normalize(ext.text), { format: 'plain' });
+  } catch { return ''; }
+}
+
+/**
+ * Ask what to do with a file that changed on disk. saving: the user pressed Save.
+ * Returns true when the caller may write over it.
+ */
+async function resolveDiskConflict(ext, { saving }) {
+  const changes = await diskChangesText(ext);
+  const body = changes ? h('div', { class: 'disk-diff' }, h('div', { class: 'muted small' }, t('dialogs.diskChanged.changes')), h('pre', { class: 'disk-diff-pre mono' }, changes)) : null;
+  const res = await openDialog({
+    title: t('dialogs.diskChanged.title', { file: ext.handle.name }),
+    message: t(store.dirty ? 'dialogs.diskChanged.messageDirty' : 'dialogs.diskChanged.message', { file: ext.handle.name }),
+    body,
+    wide: true,
+    okText: t(saving ? 'dialogs.diskChanged.overwrite' : 'dialogs.diskChanged.keepMine'),
+    danger: true,
+    onOpen: ({ form, close }) => {
+      const actions = form.querySelector('.dialog-actions');
+      actions.prepend(h('button', { type: 'button', class: 'btn btn-primary', onclick: () => close({ action: 'reload' }) }, t('dialogs.diskChanged.load')));
+    },
+  });
+  if (!res) return false;
+  if (res.action === 'reload') { await reloadFromDisk(ext.handle, ext.text); return false; }
+  return true; // overwrite (on save) / keep this copy
+}
+
+let lastSeenExternal = '';
+let checking = false;
+
+/** On returning to the tab: pick up changes made to the linked file by someone else. */
+async function checkDiskOnFocus() {
+  if (checking || loading || document.visibilityState !== 'visible') return;
+  checking = true;
+  try {
+    const ext = await readExternal();
+    if (!ext || ext.canonical === lastSeenExternal) return;
+    lastSeenExternal = ext.canonical;
+    if (!store.dirty) {
+      const before = store.savedText;
+      await reloadFromDisk(ext.handle, ext.text);
+      toast(t('toast.diskReloaded', { file: ext.handle.name }), {
+        timeout: 8000,
+        actions: [{
+          label: t('toast.showChanges'),
+          onClick: async () => {
+            try {
+              const { diffText } = await import('../core/diff.js');
+              const text = diffText(normalize(before), store.doc, { format: 'plain' });
+              openDialog({ title: t('dialogs.diskChanged.changesTitle'), body: h('pre', { class: 'disk-diff-pre mono' }, text), okText: t('dialogs.close'), cancelText: '', wide: true });
+            } catch { /* diff unavailable */ }
+          },
+        }],
+      });
+    } else {
+      toast(t('toast.diskChangedDirty', { file: ext.handle.name }), {
+        type: 'warn', timeout: 0,
+        actions: [{ label: t('toast.resolve'), onClick: () => resolveDiskConflict(ext, { saving: false }) }],
+      });
+    }
+  } finally {
+    checking = false;
+  }
+}
+
+setBeforeSave(async () => {
+  const ext = await readExternal();
+  return ext ? resolveDiskConflict(ext, { saving: true }) : true;
+});
+window.addEventListener('focus', () => checkDiskOnFocus());
+document.addEventListener('visibilitychange', () => checkDiskOnFocus());
+
+// --- open folder ----------------------------------------------------------------------
+
+/** Sidebar "Open folder": pick a folder, choose a map inside it; relative paths resolve there. */
+export async function openFolderCommand() {
+  if (!folderSupported()) { toast(t('toast.folderUnsupported'), { type: 'warn', timeout: 7000 }); return; }
+  let dir;
+  try { dir = await window.showDirectoryPicker({ id: 'ilumap-folder', mode: 'readwrite' }); } catch (e) {
+    if (e.name !== 'AbortError') toast(t('toast.folderFailed', { error: e.message }), { type: 'error' });
+    return;
+  }
+  const close = toast(t('toast.scanningFolder', { dir: dir.name }), { timeout: 0 });
+  let maps = [];
+  try { maps = await findMaps(dir); } finally { close(); }
+  if (!maps.length) { toast(t('toast.noMapsInFolder', { dir: dir.name }), { type: 'warn', timeout: 8000 }); return; }
+  let pick = maps[0];
+  if (maps.length > 1) {
+    const res = await openDialog({
+      title: t('dialogs.openFolder.title', { dir: dir.name }),
+      message: t('dialogs.openFolder.message'),
+      fields: [{ name: 'map', label: t('dialogs.openFolder.map'), type: 'select', value: '0', options: maps.map((m, i) => [String(i), [...m.path, m.name].join('/')]) }],
+      okText: t('dialogs.openFolder.ok'),
+    });
+    if (!res) return;
+    pick = maps[Number(res.map)];
+  }
+  const text = await (await pick.handle.getFile()).text();
+  const folder = { handle: dir, mapDir: pick.path };
+  const existing = await P.findByHandle(pick.handle);
+  if (existing) {
+    existing.dirHandle = dir;
+    existing.mapDir = pick.path;
+    try { await P.put(existing); } catch { /* keeps working without */ }
+    if (store.project?.id === existing.id) { store.file.dir = folder; await resolveBackground({ quiet: true }); }
+    await focusExisting(existing, pick.handle, text);
+    return;
+  }
+  if (await importText(text, { name: pick.name, handle: pick.handle, dir: folder })) {
+    toast(t('toast.openedFromFolder', { file: [...pick.path, pick.name].join('/'), dir: dir.name }), { timeout: 5000 });
+  }
+}
+
+/** Background popover: choose an image from the opened folder (stored as a path relative to the map). */
+export async function chooseBackgroundFromFolder() {
+  const dir = store.file.dir;
+  if (!dir?.handle) return;
+  if ((await requestPermission(dir.handle)) !== 'granted') { toast(t('toast.permissionDenied'), { type: 'warn' }); return; }
+  const images = await findImages(dir.handle);
+  if (!images.length) { toast(t('toast.noImagesInFolder', { dir: dir.handle.name }), { type: 'warn' }); return; }
+  const res = await openDialog({
+    title: t('dialogs.folderImage.title'),
+    fields: [{ name: 'img', label: t('dialogs.folderImage.image'), type: 'select', value: '0', options: images.map((m, i) => [String(i), [...m.path, m.name].join('/')]) }],
+    okText: t('dialogs.folderImage.ok'),
+  });
+  if (!res) return;
+  const img = images[Number(res.img)];
+  const src = relativePath(dir.mapDir || [], [...img.path, img.name]);
+  const file = await img.handle.getFile();
+  await attachBackgroundFile(new File([file], img.name, { type: file.type }), { src });
+}
+
+/** Grant folder access again after a browser restart (needs a click). */
+export async function allowFolderAccess() {
+  const dir = store.file.dir;
+  if (!dir?.handle) return;
+  if ((await requestPermission(dir.handle)) === 'granted') await resolveBackground({ quiet: false });
 }
 
 // --- commands (sidebar, shortcuts, drag & drop) ----------------------------------------

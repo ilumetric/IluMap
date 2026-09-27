@@ -1,6 +1,6 @@
 // Floating toolbars on the canvas.
 // Left (vertically centred): stacked round pills
-//   [Layers panel] · [Select, Pan] · [Line, Polygon, Wall, POI] · [Measure, Calibrate, Delete]
+//   [Layers panel] · [Select, Pan] · [Line, Polygon, Wall, Bridge, POI] · [Measure, Calibrate, Delete]
 // The active tool is a filled accent circle; draw tools carry a small
 // underline in the colour of the layer they will draw into.
 // The view toggles (grid, labels, background) live in the top pill (chrome.js).
@@ -15,10 +15,11 @@ import { layerColor, chromeTint, layerLabel } from './layer-meta.js';
 import { t, onLangChange } from '../i18n/index.js';
 import { targetLayer } from '../tools/draw-common.js';
 import { pickBackgroundImage } from '../io.js';
+import { chooseBackgroundFromFolder, allowFolderAccess } from '../session.js';
 
 const GROUPS = [
   ['select', 'pan'],
-  ['line', 'polygon', 'wall', 'poi'],
+  ['line', 'polygon', 'wall', 'bridge', 'poi'],
   ['measure', 'calibrate', '$delete'],
 ];
 
@@ -27,6 +28,7 @@ function toolLayer(id) {
   if (id === 'line') return targetLayer('line', false);
   if (id === 'polygon') return targetLayer('polygon', false);
   if (id === 'wall') return 'walls';
+  if (id === 'bridge') return 'bridges';
   if (id === 'poi') return 'pois';
   return null;
 }
@@ -105,6 +107,10 @@ export function mountToolbar({ tools, activateTool, deleteSelection, panels }) {
 /** Background image popover (load, opacity, calibrate, fit, replace, remove). */
 export function openBackgroundPopover(anchor, { side = 'bottom', align = 'center' } = {}) {
   const body = h('div', { class: 'bg-pop' });
+  // maps opened through "Open folder" can take an image from that folder (stored as a relative path)
+  const folderButton = () => (store.file.dir
+    ? h('button', { type: 'button', class: 'btn btn-small', title: t('background.fromFolderTitle'), onclick: () => { closeMenu(); chooseBackgroundFromFolder(); } }, icon('folderOpen'), t('background.fromFolder'))
+    : null);
   const render = () => {
     clear(body);
     const doc = store.doc;
@@ -114,7 +120,9 @@ export function openBackgroundPopover(anchor, { side = 'bottom', align = 'center
     if (!b) {
       body.append(
         h('p', { class: 'muted small' }, t('background.emptyHint')),
-        h('button', { type: 'button', class: 'btn btn-primary btn-small', onclick: () => { closeMenu(); pickBackgroundImage(); } }, icon('image'), t('background.load')));
+        h('div', { class: 'pop-actions' },
+          h('button', { type: 'button', class: 'btn btn-primary btn-small', onclick: () => { closeMenu(); pickBackgroundImage(); } }, icon('image'), t('background.load')),
+          folderButton()));
       return;
     }
     const op = h('input', { type: 'range', name: 'bg-opacity', min: 0, max: 1, step: 0.05, value: b.opacity ?? 0.6, 'aria-label': t('background.opacity') });
@@ -136,6 +144,8 @@ export function openBackgroundPopover(anchor, { side = 'bottom', align = 'center
           onclick: () => { change((d) => { d.view.background.calibration = fitPairs(d.view.bounds, st.width, st.height, !!d.meta.flipY); }); render(); },
         }, icon('fit'), t('background.fit')),
         h('button', { type: 'button', class: 'btn btn-small', onclick: () => { closeMenu(); pickBackgroundImage(); } }, t('background.replace')),
+        folderButton(),
+        st?.url || !store.file.dir ? null : h('button', { type: 'button', class: 'btn btn-small', title: t('background.allowFolderTitle'), onclick: () => { closeMenu(); allowFolderAccess(); } }, icon('folderOpen'), t('background.allowFolder')),
         h('button', {
           type: 'button', class: 'btn btn-small btn-danger',
           onclick: () => { change((d) => { delete d.view.background; }); store.background = null; emit('background'); render(); },

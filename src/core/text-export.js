@@ -6,6 +6,10 @@ import {
 } from './geometry.js';
 import { zoneOf, isLand, waterAt, findById } from './model.js';
 import { computeTerrain } from './terrain.js';
+import { buildNetwork, describeRoute } from './routes.js';
+
+/** Link types measured along the network instead of in a straight line, and the layers they travel on. */
+const ROUTE_LAYERS = { road: ['roads', 'bridges'], path: ['roads', 'bridges'], rail: ['rails', 'bridges'] };
 
 /**
  * Length in world units -> "1.2 km" / "350 m" / "12 cm" using meta.displayUnit(Scale).
@@ -64,6 +68,19 @@ function fmtCoord(v) {
  * @param {object} doc normalised map
  * @param {{format?: 'markdown'|'plain', nearest?: number}} opts
  */
+/** True when two polylines intersect (proper or touching segment crossing). */
+function polylinesCross(a, b) {
+  const cross = (p, q, r, t) => {
+    const d = (q[0] - p[0]) * (t[1] - r[1]) - (q[1] - p[1]) * (t[0] - r[0]);
+    if (!d) return false;
+    const u = ((r[0] - p[0]) * (t[1] - r[1]) - (r[1] - p[1]) * (t[0] - r[0])) / d;
+    const v = ((r[0] - p[0]) * (q[1] - p[1]) - (r[1] - p[1]) * (q[0] - p[0])) / d;
+    return u >= 0 && u <= 1 && v >= 0 && v <= 1;
+  };
+  for (let i = 0; i + 1 < a.length; i++) for (let j = 0; j + 1 < b.length; j++) if (cross(a[i], a[i + 1], b[j], b[j + 1])) return true;
+  return false;
+}
+
 export function toText(doc, opts = {}) {
   const md = (opts.format || 'markdown') !== 'plain';
   const nearestN = opts.nearest ?? 3;
@@ -225,6 +242,49 @@ export function toText(doc, opts = {}) {
     out.push('');
   }
 
+  // --- relief (ridges, faults, cliffs)
+  const relief = doc.layers.relief || [];
+  if (relief.length) {
+    out.push(h2('Relief'));
+    out.push('');
+    for (const f of relief) {
+      const g = featureGeometry(f);
+      if (g.length < 2) continue;
+      const closed = f.closed === true;
+      let line = `- ${f.type ? f.type[0].toUpperCase() + f.type.slice(1) : 'Relief line'}: ${b(f.name || f.id)} (${c(f.id)}) — ${L(polylineLength(g, closed))}`;
+      if (!closed) line += `, from ${placeDesc(g[0])} to ${placeDesc(g[g.length - 1])}`;
+      const cut = ['roads', 'rails'].flatMap((l) => doc.layers[l]).filter((r) => polylinesCross(g, featureGeometry(r)));
+      if (cut.length) line += `; crosses ${cut.map((r) => `${r.name || r.id} (${c(r.id)})`).join(', ')}`;
+      if (f.type === 'cliff') line += '; drop on the left of its drawing direction';
+      out.push(`${line}.`);
+    }
+    out.push('');
+  }
+
+  // --- bridges
+  const bridges = doc.layers.bridges || [];
+  if (bridges.length) {
+    out.push(h2('Bridges'));
+    out.push('');
+    for (const f of bridges) {
+      const pts = f.points || [];
+      if (pts.length < 2) continue;
+      const axis = [pts[0], pts[pts.length - 1]];
+      const mid = [(axis[0][0] + axis[1][0]) / 2, (axis[0][1] + axis[1][1]) / 2];
+      const over = [...doc.layers.rivers, ...relief, ...doc.layers.water]
+        .filter((o) => { const g = featureGeometry(o); return polylinesCross(axis, o.kind === 'polygon' ? [...g, g[0]] : g); });
+      const reach = Math.max(f.width || 0, distance(axis[0], axis[1]) * 0.75, diag * 0.004);
+      const on = [...doc.layers.roads, ...doc.layers.rails].filter((r) => nearestPointOnPolyline(mid, featureGeometry(r), r.closed === true).dist <= reach);
+      let line = `- ${b(f.name || f.id)} (${c(f.id)}${f.type ? `, ${f.type}` : ''}) — ${L(distance(axis[0], axis[1]))}`;
+      if (f.width) line += ` × ${L(f.width)}`;
+      line += over.length ? `, over ${over.map((o) => `${o.name || o.id} (${c(o.id)})`).join(', ')}` : ', over nothing mapped';
+      if (on.length) line += `, on ${on.map((r) => `${r.name || r.id} (${c(r.id)})`).join(', ')}`;
+      line += ` — ${placeDesc(mid)}`;
+      out.push(`${line}.`);
+    }
+    out.push('');
+  }
+
   // --- walls
   if (doc.layers.walls.length) {
     out.push(h2('Walls'));
@@ -239,6 +299,7 @@ export function toText(doc, opts = {}) {
   }
 
   // --- links
+  const networks = {};
   if (doc.links.length) {
     out.push(h2('Links'));
     out.push('');
@@ -249,7 +310,12 @@ export function toText(doc, opts = {}) {
       if (k.name) line += ` "${k.name}"`;
       const pa = a && (a.kind === 'poi' ? [a.item.x, a.item.y] : null);
       const pz = z && (z.kind === 'poi' ? [z.item.x, z.item.y] : null);
-      if (pa && pz && a.item.placed !== false && z.item.placed !== false) line += `, ${L(distance(pa, pz))} straight-line`;
+      const onGround = ROUTE_LAYERS[k.type];
+      if (onGround) {
+        // distance along the roads / rails, with rivers, faults and bridges on the way
+        networks[k.type] ||= buildNetwork(doc, { layers: onGround });
+        line += `, ${describeRoute(doc, k.from, k.to, { network: networks[k.type], layers: onGround })}`;
+      } else if (pa && pz && a.item.placed !== false && z.item.placed !== false) line += `, ${L(distance(pa, pz))} straight-line`;
       if (k.feature) line += ` (via ${c(k.feature)})`;
       if (k.notes) line += ` — ${k.notes}`;
       out.push(line);

@@ -14,7 +14,7 @@ add their own fields under an `x_` prefix (e.g. `x_questGiver`).
 | `view` | object | background image, calibration, bounds, grid |
 | `terrain` | object, optional | Unreal Mesh Terrain grid (resolution, sections, height range) |
 | `style` | object | colours and per-type styling |
-| `layers` | object | `land`, `water`, `coast`, `rivers`, `roads`, `rails`, `walls`, `zones` — each an array of Feature |
+| `layers` | object | `land`, `water`, `coast`, `rivers`, `roads`, `rails`, `walls`, `zones`, `relief`, `bridges` — each an array of Feature |
 | `pois` | array | points of interest |
 | `links` | array | relations between POIs |
 
@@ -91,7 +91,21 @@ stored here: it is the size of `view.bounds`, in world units.
     "roads":  { "stroke": "#d9b46a", "width": 2 },
     "rails":  { "stroke": "#b0b0b0", "width": 2, "dash": "8 4" },
     "walls":  { "stroke": "#e0e0e0", "width": 4 },
-    "zones":  { "opacity": 0.35 }
+    "zones":  { "opacity": 0.35 },
+    "relief": { "stroke": "#c9b08a", "width": 1.6 },
+    "bridges": { "stroke": "#e6eef7", "width": 1.4 }
+  },
+  "reliefTypes": {                   // used by relief `type`; pattern = ridge | fault | cliff
+    "ridge": { "stroke": "#c9b08a", "pattern": "ridge" },
+    "fault": { "stroke": "#e07a5f", "pattern": "fault" },
+    "cliff": { "stroke": "#b8966d", "pattern": "cliff" }
+  },
+  "bridgeTypes": {                   // used by bridges `type`
+    "pedestrian": { "width": 2.5, "abbr": "ped." },
+    "suspension": { "width": 2.5, "abbr": "susp." },
+    "wood":       { "width": 3.5, "abbr": "wood" },
+    "stone":      { "width": 4, "abbr": "stone", "ends": "hatch" },
+    "metal":      { "width": 4, "abbr": "met.", "piers": true }
   },
   "lineTypes": {                     // used by rivers/roads/rails `type`
     "river_main":  { "width": 4 }, "river_minor": { "width": 2 },
@@ -168,6 +182,25 @@ Layer semantics:
 * `rivers`, `roads`, `rails` — lines.
 * `walls` — lines, usually `closed`, with a `wall` object.
 * `zones` — polygons: biomes / regions used for POI `zone` and masks.
+* `relief` — lines: `type` `ridge` (drawn with short ticks on both sides),
+  `fault` (dash-dot with cross ticks) or `cliff` (teeth on the **left** of the
+  drawing direction = the downhill side; reverse the line to flip them).
+  Faults and cliffs are obstacles for road routes; ridges are reported only.
+  Mask sources `relief` and `relief:<type>`.
+* `bridges` — lines from one bank to the other (the editor's Bridge tool makes
+  two points). `type` `pedestrian`, `suspension`, `wood`, `stone`, `metal`;
+  `width` is the deck width in world units. Drawn as a topographic bridge
+  symbol (deck lines with splayed wings, the type label, piers / hatched
+  approaches by type, never shorter than 16 px on screen). A river, fault,
+  cliff or lake crossing is "bridged" when a bridge spans it.
+
+### Distances along roads
+
+The CLI (`route`, `text`) and the editor measure `road`, `path` and `rail`
+links along the network: roads + bridges (road and path links) or rails +
+bridges (rail links), joined where endpoints meet or roads cross. The text
+says e.g. `13.7 km by road (straight 13 km, 1.1×) via King's Road; crosses
+Black River by Stone Bridge` or `crosses Great Fault (no bridge)`.
 
 ### `wall`
 

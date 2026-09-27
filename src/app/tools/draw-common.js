@@ -23,11 +23,11 @@ export function targetLayer(kind, wall) {
   return kind === 'line' ? (store.prefs.lastLineLayer || 'roads') : (store.prefs.lastPolygonLayer || 'land');
 }
 
-export function createDrawTool({ id, labelKey, key, icon, kind, wall = false }) {
+export function createDrawTool({ id, labelKey, hintKey = null, key, icon, kind, wall = false, layer: fixedLayer = null, maxPoints = 0 }) {
   let pts = [];
   let hover = null;
 
-  const layer = () => targetLayer(kind, wall);
+  const layer = () => fixedLayer || targetLayer(kind, wall);
   const minPts = kind === 'polygon' ? 3 : 2;
 
   function finish(canvas, { close = false } = {}) {
@@ -41,7 +41,9 @@ export function createDrawTool({ id, labelKey, key, icon, kind, wall = false }) 
     if (type) f.type = type;
     f.points = pts.map((p) => p.slice());
     if (kind === 'line' && close && pts.length >= 3) f.closed = true;
-    if (l !== 'walls') f.smooth = true;
+    if (l !== 'walls' && l !== 'bridges') f.smooth = true;
+    // bridges get a real deck width (world units), narrower for foot and suspension bridges
+    if (l === 'bridges') f.width = ['pedestrian', 'suspension'].includes(type) ? 300 : 600;
     if (l === 'walls') {
       f.width = 300;
       f.wall = { ...DEFAULT_WALL, gates: [] };
@@ -59,7 +61,7 @@ export function createDrawTool({ id, labelKey, key, icon, kind, wall = false }) 
     get label() { return t(labelKey); },
     get drawing() { return pts.length > 0; },
     hint() {
-      return t(kind === 'line' ? 'tools.drawLineHint' : 'tools.drawPolygonHint', { layer: layerLabel(layer()) });
+      return t(hintKey || (kind === 'line' ? 'tools.drawLineHint' : 'tools.drawPolygonHint'), { layer: layerLabel(layer()) });
     },
     activate() {
       const l = layer();
@@ -80,6 +82,8 @@ export function createDrawTool({ id, labelKey, key, icon, kind, wall = false }) 
       }
       pts.push(p);
       hover = p;
+      // fixed-length tools (bridge: one bank, then the other) finish by themselves
+      if (maxPoints && pts.length >= maxPoints) { finish(ctx.canvas); emit('hud'); return; }
       ctx.canvas.invalidate('tool');
       emit('hud');
     },
@@ -107,7 +111,7 @@ export function createDrawTool({ id, labelKey, key, icon, kind, wall = false }) 
       const V = (p) => toView(store.doc, p);
       const all = (hover ? [...pts, hover] : pts).map(V);
       const closed = kind === 'polygon';
-      const d = all.length >= 3 && layer() !== 'walls' ? catmullRomToPath(all, closed) : linearPath(all, closed);
+      const d = all.length >= 3 && layer() !== 'walls' && layer() !== 'bridges' ? catmullRomToPath(all, closed) : linearPath(all, closed);
       let s = `<path d="${d}" class="ov-draft${kind === 'polygon' ? ' fill' : ''}" stroke-width="${2 * upp}"/>`;
       s += `<path d="${linearPath(all, closed)}" class="ov-cage" stroke-width="${upp}"/>`;
       pts.map(V).forEach(([x, y], i) => {

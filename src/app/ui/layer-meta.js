@@ -17,6 +17,8 @@ export function typeGroupOf(layer) {
   if (layer === 'pois') return 'poiTypes';
   if (layer === 'zones') return 'zoneTypes';
   if (layer === 'walls') return 'wallTypes';
+  if (layer === 'relief') return 'reliefTypes';
+  if (layer === 'bridges') return 'bridgeTypes';
   return 'lineTypes';
 }
 
@@ -24,9 +26,9 @@ export function typeGroupOf(layer) {
 export const typeLabel = (layer, type) => label(typeGroupOf(layer), type);
 
 /** Layers shown as chips in the dock, bottom to top of the usual workflow. */
-export const DOCK_LAYERS = ['land', 'water', 'coast', 'rivers', 'roads', 'rails', 'walls', 'zones', 'pois'];
+export const DOCK_LAYERS = ['land', 'water', 'coast', 'relief', 'rivers', 'roads', 'rails', 'bridges', 'walls', 'zones', 'pois'];
 
-const DEFAULT_TYPES = { rivers: 'river_minor', roads: 'road_dirt', rails: 'rail', walls: 'wall_stone', zones: 'plains', pois: 'poi' };
+const DEFAULT_TYPES = { rivers: 'river_minor', roads: 'road_dirt', rails: 'rail', walls: 'wall_stone', zones: 'plains', relief: 'ridge', bridges: 'stone', pois: 'poi' };
 
 /** Type names offered for new features in a layer (preset types + types used in the map). */
 export function typeOptions(layer, rs = resolveStyle(store.doc.style)) {
@@ -34,6 +36,8 @@ export function typeOptions(layer, rs = resolveStyle(store.doc.style)) {
   if (layer === 'pois') names = [...Object.keys(rs.poiTypes), ...store.doc.pois.map((p) => p.type)];
   else if (layer === 'zones') names = Object.keys(rs.zoneTypes);
   else if (layer === 'walls') names = Object.keys(rs.wallTypes);
+  else if (layer === 'relief') names = Object.keys(rs.reliefTypes);
+  else if (layer === 'bridges') names = Object.keys(rs.bridgeTypes);
   else if (layer === 'rivers') names = Object.keys(rs.lineTypes).filter((t) => t.startsWith('river'));
   else if (layer === 'rails') names = Object.keys(rs.lineTypes).filter((t) => t.startsWith('rail'));
   else if (layer === 'roads') names = Object.keys(rs.lineTypes).filter((t) => !t.startsWith('river') && !t.startsWith('rail'));
@@ -69,6 +73,8 @@ export function layerColor(layer, rs = resolveStyle(store.doc.style)) {
     case 'zones': return rs.zoneTypes[newTypeFor('zones')]?.fill || '#888888';
     case 'pois': return rs.poiTypes[newTypeFor('pois')]?.color || rs.poiTypes.poi?.color || '#888888';
     case 'walls': return rs.wallTypes[newTypeFor('walls')]?.stroke || L.stroke || '#dddddd';
+    case 'relief': return rs.reliefTypes[newTypeFor('relief')]?.stroke || L.stroke || '#b8a58a';
+    case 'bridges': return rs.bridgeTypes[newTypeFor('bridges')]?.stroke || L.stroke || '#dddddd';
     default: {
       const T = rs.lineTypes[newTypeFor(layer)];
       return (T && T.stroke) || L.stroke || L.fill || '#888888';
@@ -81,6 +87,8 @@ export function colorTarget(layer) {
   if (layer === 'zones') return { group: 'zoneTypes', name: newTypeFor('zones'), key: 'fill' };
   if (layer === 'pois') return { group: 'poiTypes', name: newTypeFor('pois'), key: 'color' };
   if (layer === 'land') return { group: 'layers', name: 'land', key: 'fill' };
+  if (layer === 'relief') return { group: 'reliefTypes', name: newTypeFor('relief'), key: 'stroke' };
+  if (layer === 'bridges') return { group: 'bridgeTypes', name: newTypeFor('bridges'), key: 'stroke' };
   return { group: 'layers', name: layer, key: 'stroke' };
 }
 
