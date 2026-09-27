@@ -359,6 +359,8 @@ export class Canvas {
     else if (this.spaceDown || t === 'pan') c = 'grab';
     else if (['line', 'polygon', 'wall', 'poi', 'measure', 'calibrate'].includes(t)) c = 'crosshair';
     this.svg.style.cursor = c;
+    // while panning (Hand tool, Space held or a drag in progress) map items are not targets
+    this.svg.classList.toggle('panning', !!this.pan || this.spaceDown || t === 'pan');
   }
 
   // --- events -------------------------------------------------------------------
@@ -410,7 +412,7 @@ export class Canvas {
       if (e.button === 1 || (e.button === 0 && (this.spaceDown || store.tool === 'pan'))) {
         e.preventDefault();
         this.pan = { x: e.clientX, y: e.clientY };
-        svg.setPointerCapture(e.pointerId);
+        try { svg.setPointerCapture(e.pointerId); } catch { /* synthetic or already released pointer */ }
         this.updateCursor();
         return;
       }
@@ -423,7 +425,7 @@ export class Canvas {
       const ctx = this.makeCtx(e, { hit: this.hitFromTarget(e.target), clicks });
       if (e.button === 2) { tool?.contextmenu?.(ctx); return; }
       if (e.button !== 0) return;
-      svg.setPointerCapture(e.pointerId);
+      try { svg.setPointerCapture(e.pointerId); } catch { /* synthetic or already released pointer */ }
       this.dragging = true;
       tool?.down?.(ctx);
     });

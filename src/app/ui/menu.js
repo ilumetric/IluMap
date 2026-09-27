@@ -67,7 +67,7 @@ function show(el, opts) {
     closeMenu();
   };
   const onKey = (e) => {
-    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeMenu(); opts.anchor?.focus?.(); return; }
+    if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); closeMenu(); opts.anchor?.focus?.(); return; }
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       const items = [...el.querySelectorAll('.menu-item:not(:disabled)')];
       if (!items.length) return;
@@ -89,10 +89,11 @@ function show(el, opts) {
 
 /**
  * Show a menu. items: [{ label, icon?, kbd?, onClick, danger?, disabled?, hint?, checked? (radio item), lang? } | '-' (separator) | { heading }]
- * opts: { anchor?, x?, y?, align?: 'start'|'end'|'center', side?: 'bottom'|'top'|'right'|'left' }
+ * opts: { anchor?, x?, y?, align?: 'start'|'end'|'center', side?: 'bottom'|'top'|'right'|'left', className?, minWidth?, onClose?, focus? }
  */
 export function openMenu(items, opts = {}) {
-  const el = h('div', { class: 'menu-pop chrome', role: 'menu' });
+  const el = h('div', { class: `menu-pop chrome${opts.className ? ` ${opts.className}` : ''}`, role: 'menu' });
+  if (opts.minWidth) el.style.minWidth = `${Math.round(opts.minWidth)}px`;
   for (const it of items) {
     if (it === '-') { el.append(h('div', { class: 'menu-sep', role: 'separator' })); continue; }
     if (it.heading) { el.append(h('div', { class: 'menu-heading' }, it.heading)); continue; }
@@ -105,7 +106,12 @@ export function openMenu(items, opts = {}) {
     }, ico ? icon(ico) : h('span', { class: 'ico ico-blank' }), h('span', { class: 'menu-label' }, it.label), it.kbd ? h('kbd', {}, it.kbd) : null));
   }
   const shown = show(el, opts);
-  if (shown && opts.focus !== false) shown.querySelector('.menu-item:not(:disabled)')?.focus({ preventScroll: true });
+  if (shown && opts.focus !== false) {
+    // start on the checked item (dropdowns), else the first one
+    const first = shown.querySelector('.menu-item.checked:not(:disabled)') || shown.querySelector('.menu-item:not(:disabled)');
+    first?.focus({ preventScroll: true });
+    first?.scrollIntoView({ block: 'nearest' });
+  }
   return shown;
 }
 

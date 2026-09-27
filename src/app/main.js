@@ -19,6 +19,7 @@ import { createPanel, clampFloatingPanels } from './ui/floating-panel.js';
 import { mountSidebar } from './ui/sidebar.js';
 import { mountToolbar } from './ui/toolbar.js';
 import { mountRightbar } from './ui/rightbar.js';
+import { autoEnhanceSelects } from './ui/select.js';
 import { mountDock } from './ui/dock.js';
 import { mountMinimap } from './ui/minimap.js';
 import {
@@ -32,6 +33,7 @@ import { t, plural, applyI18n } from './i18n/index.js';
 
 applyTheme();
 applyI18n(document);
+autoEnhanceSelects(); // every <select> gets the app's own dropdown (ui/select.js)
 
 const canvas = new Canvas($('#stage'), { getTool: () => TOOLS[store.tool] });
 

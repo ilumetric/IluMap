@@ -149,6 +149,15 @@ they live in `core/render-svg.js` because exports need them.
   header (icon, title, close) and a scrolling body, max height 70vh, docked
   next to the tool stack. Dragging the header floats it (position saved in
   the UI prefs); double-clicking the header docks it again.
+* **Dropdowns** (`ui/select.js`): every `<select>` is shown as a button styled
+  like the inputs (label + chevron, accent ring when focused or open) and
+  opens the app's own menu (`.sel-menu`: at least as wide as the button,
+  scrolls above 360px, the current value checked in teal). The native
+  `<select>` stays hidden in the DOM as the source of truth, so native OS
+  pop-ups never appear. Add `data-native` to a `<select>` to opt out. Menus sit
+  above dialogs; Escape closes the menu first, then the dialog.
+* **Hand tool** (and Space / a pan in progress): map items get no hover
+  highlight and keep the grab cursor.
 * **POI icon picker** (`ui/poi-icons.js`): a 300px popover with the map
   symbols in groups (places, services, transport, industry, nature, markers;
   7-column grids of 36px cells, selected = teal ring, scrolls above 440px); from the

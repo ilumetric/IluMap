@@ -3,6 +3,7 @@
 
 import { icon } from './ui/icons.js';
 import { t } from './i18n/index.js';
+import { enhanceSelects } from './ui/select.js';
 
 export function h(tag, attrs = {}, ...children) {
   const el = tag.startsWith('svg:')
@@ -53,6 +54,7 @@ export function renderKeepingFocus(container, render) {
   }
   const scroll = container.scrollTop;
   render();
+  enhanceSelects(container); // styled dropdowns now, so focus can go back to their buttons
   container.scrollTop = scroll;
   if (key) {
     const el = container.querySelector(`[name="${CSS.escape(key)}"]`);
@@ -128,7 +130,14 @@ export function openDialog({ title, message, body, footer, fields = [], okText =
       document.removeEventListener('keydown', onKey, true);
       resolve(val);
     };
-    const onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); done(null); } };
+    const onKey = (e) => {
+      if (e.key !== 'Escape') return;
+      // a dropdown / menu opened from the dialog closes first (ui/menu.js handles that Escape)
+      if (document.querySelector('#menus .menu-pop')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      done(null);
+    };
     document.addEventListener('keydown', onKey, true);
     cancel.addEventListener('click', () => done(null));
     backdrop.addEventListener('pointerdown', (e) => { if (e.target === backdrop) done(null); });
