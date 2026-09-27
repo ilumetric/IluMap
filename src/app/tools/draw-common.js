@@ -92,6 +92,14 @@ export function createDrawTool({ id, labelKey, hintKey = null, key, icon, kind, 
       if (pts.length) { ctx.canvas.invalidate('tool'); emit('hud'); }
     },
     contextmenu(ctx) { if (pts.length) finish(ctx.canvas); },
+    /** Ctrl+Z while drawing: remove the last placed point (like Backspace). */
+    onUndo(canvas) {
+      if (!pts.length) return false;
+      pts.pop();
+      canvas.invalidate('tool');
+      emit('hud');
+      return true;
+    },
     onKey(e, canvas) {
       if (e.key === 'Enter') { finish(canvas); return true; }
       if ((e.key === 'c' || e.key === 'C') && pts.length) { finish(canvas, { close: true }); return true; }

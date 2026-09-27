@@ -19,7 +19,9 @@ derived from that file.
   floating toolbars, a layer dock, a minimap and draggable panels (dark or
   light theme) — with layers, smooth curves, a wall builder with towers and
   gates, grid snapping, a measure tool, background-image calibration and
-  undo/redo. Maps are drawn in the `graphite`, `blueprint` or `parchment`
+  undo/redo (named steps, a history list to jump back to any step, the
+  selection comes back with each step; kept in memory for the session, never
+  saved). Maps are drawn in the `graphite`, `blueprint` or `parchment`
   style.
 - **Local maps:** the sidebar lists your maps as browser working copies
   (IndexedDB), autosaved on every change, including their background images.
@@ -287,7 +289,7 @@ together with `masks.json` (Chrome / Edge).
 | `Shift` | Invert grid snapping (magnet toggle, bottom right) while drawing / dragging a POI |
 | `Alt`+click segment · double-click vertex | Insert · delete a vertex |
 | `Delete` · arrows | Delete · nudge the selection |
-| `Ctrl+Z` / `Ctrl+Y` | Undo / redo |
+| `Ctrl+Z` / `Ctrl+Y` (`Ctrl+Shift+Z`) | Undo / redo (while drawing: remove the last point) |
 | `Ctrl+S` / `Ctrl+Shift+S` / `Ctrl+O` | Save to map.json / save as / open a map.json as a local map |
 | `Ctrl+B` · `Ctrl+K` · `Ctrl+,` | Show / hide the sidebar · search local maps · settings (language, theme) |
 | `G` · `/` · `?` · `F2` | Grid · search POIs · help · rename the map |

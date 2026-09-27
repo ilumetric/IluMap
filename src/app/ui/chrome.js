@@ -5,7 +5,9 @@
 //   bottom-right snap + flipY toggles, zoom − / % / +, fit, shortcuts, settings; cursor read-out above
 //   bottom-centre (above the dock) tool hint / status HUD
 
-import { store, on, emit, change, savePrefs, canUndo, canRedo, layerPrefs, isLayerVisible } from '../state.js';
+import {
+  store, on, emit, change, savePrefs, canUndo, canRedo, layerPrefs, isLayerVisible, undoLabel, redoLabel, historyList, historyJump,
+} from '../state.js';
 import { openBackgroundPopover } from './toolbar.js';
 import { zoneOf, isLand, findById } from '../../core/model.js';
 import { h } from '../dom.js';
@@ -163,12 +165,52 @@ export function mountPanelToggles({ panels, terrainBody }) {
   update();
 }
 
+/** Text of a history step label ({ key, name?, count? } from core/history.js). */
+export function historyLabel(label) {
+  const action = t(`history.action.${label?.key || 'edit'}`);
+  if (label?.name) return t('history.named', { action, name: label.name });
+  if (label?.count > 1) return t('history.counted', { action, items: plural('count.items', label.count) });
+  return action;
+}
+
+const HISTORY_MENU_MAX = 60; // steps shown around the current one
+
+function openHistoryMenu(anchor) {
+  const { undo: done, redo: next } = historyList();
+  const cur = done.length;
+  const items = [{ heading: t('history.title') }];
+  if (!done.length && !next.length) {
+    items.push({ label: t('history.empty'), disabled: true });
+    openMenu(items, { anchor, align: 'end', className: 'history-menu' });
+    return;
+  }
+  // states: 0 = as opened, i = after step i; the current one is checked, future ones dimmed
+  const all = [...done, ...next];
+  const from = Math.max(0, Math.min(cur - Math.floor(HISTORY_MENU_MAX / 2), all.length - HISTORY_MENU_MAX));
+  const to = Math.min(all.length, from + HISTORY_MENU_MAX);
+  if (from === 0) items.push({ label: t('history.original'), checked: cur === 0, onClick: () => historyJump(-cur) });
+  else items.push({ label: t('history.earlier', { n: String(from) }), disabled: true });
+  for (let i = from; i < to; i++) {
+    const state = i + 1;
+    items.push({
+      label: historyLabel(all[i]),
+      checked: state === cur,
+      className: state > cur ? 'future' : '',
+      onClick: () => historyJump(state - cur),
+    });
+  }
+  if (to < all.length) items.push({ label: t('history.later', { n: String(all.length - to) }), disabled: true });
+  items.push('-', { heading: t('history.memoryOnly') });
+  openMenu(items, { anchor, align: 'end', className: 'history-menu', minWidth: 240 });
+}
+
 export function mountHistory({ undoCmd, redoCmd, rightbar }) {
   const root = document.getElementById('history-pill');
   const u = h('button', { type: 'button', class: 'icon-btn', onclick: undoCmd }, icon('undo'));
   const r = h('button', { type: 'button', class: 'icon-btn', onclick: redoCmd }, icon('redo'));
+  const list = h('button', { type: 'button', class: 'icon-btn icon-btn-narrow', 'aria-haspopup': 'menu', onclick: () => openHistoryMenu(list) }, icon('chevronDown'));
   const side = h('button', { type: 'button', class: 'icon-btn toggle', onclick: () => rightbar.toggle() }, icon('panelRight'));
-  root.append(u, r, h('span', { class: 'pill-sep' }), side);
+  root.append(u, r, list, h('span', { class: 'pill-sep' }), side);
   const updateSide = () => {
     const open = rightbar.isOpen();
     side.classList.toggle('on', open);
@@ -179,16 +221,22 @@ export function mountHistory({ undoCmd, redoCmd, rightbar }) {
   on('rightbar', updateSide);
   onLangChange(updateSide);
   updateSide();
-  const relabel = () => {
+  const update = () => {
     root.setAttribute('aria-label', t('history.aria'));
-    u.title = `${t('history.undo')} (Ctrl+Z)`;
-    u.setAttribute('aria-label', t('history.undo'));
-    r.title = `${t('history.redo')} (Ctrl+Y / Ctrl+Shift+Z)`;
-    r.setAttribute('aria-label', t('history.redo'));
+    const ul = undoLabel();
+    const rl = redoLabel();
+    u.disabled = !canUndo();
+    r.disabled = !canRedo();
+    // the step each button would apply, as in desktop editors ("Undo Move “Village”")
+    u.title = `${ul ? t('history.undoAction', { action: historyLabel(ul) }) : t('history.undo')} (Ctrl+Z)`;
+    r.title = `${rl ? t('history.redoAction', { action: historyLabel(rl) }) : t('history.redo')} (Ctrl+Y / Ctrl+Shift+Z)`;
+    u.setAttribute('aria-label', u.title);
+    r.setAttribute('aria-label', r.title);
+    list.title = t('history.list');
+    list.setAttribute('aria-label', t('history.list'));
   };
-  onLangChange(relabel);
-  relabel();
-  const update = () => { u.disabled = !canUndo(); r.disabled = !canRedo(); };
+  onLangChange(update);
+  on('history', update);
   on('doc', (d) => { if (!d?.live) update(); });
   on('load', update);
   update();

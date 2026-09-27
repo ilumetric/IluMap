@@ -121,7 +121,9 @@ they live in `core/render-svg.js` because exports need them.
     starts with a scope switch — *Whole map* / *Selection (n)* (disabled when
     nothing is selected, remembered in the UI prefs) — followed by JSON, SVG,
     PNG, Masks, Copy as text, Save, Save as. On = `--surface-hover`.
-  * top-right **history pill**: undo / redo, then the right-sidebar toggle.
+  * top-right **history pill**: undo / redo (tooltips name the step), a
+    narrow chevron with the history list (current step checked, redo steps
+    dimmed, click to jump), then the right-sidebar toggle.
   * left **tool stack** (vertically centred): round pills separated by 8px:
     [Layers] · [Select, Pan] · [Line, Polygon, Wall, POI] · [Measure,
     Calibrate, Delete]. Buttons are 32px circles; the active tool is filled

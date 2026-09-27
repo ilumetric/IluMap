@@ -1,12 +1,15 @@
-// Single in-memory document + selection + tool state, snapshot undo/redo,
-// dirty flag (= differs from the file on disk) and UI prefs (localStorage).
+// Single in-memory document + selection + tool state, undo / redo (patches of
+// the changed items, see core/history.js; kept in memory only, per project for
+// the session), dirty flag (= differs from the file on disk) and UI prefs
+// (localStorage).
 // Persistence of the working copy lives in session.js / projects.js.
 
 import { createEmptyMap, normalize, serialize, findById } from '../core/model.js';
 import { LAYERS, LAYER_KIND } from '../core/schema.js';
+import * as H from '../core/history.js';
 
 const PREFS_KEY = 'ilumap.prefs.v1';
-const MAX_UNDO = 200;
+const MAX_STASHED = 6; // projects whose history is kept while switching between them
 
 const listeners = new Map();
 export function on(evt, fn) {
@@ -82,9 +85,11 @@ export const store = {
   cursor: null, // world coords under the mouse
 };
 
-let undoStack = [];
-let redoStack = [];
-let pending = null;
+let history = H.createHistory(store.doc);
+let pending = null; // { selBefore, opts } while a change / gesture is open
+let savedRev = 0; // history revision that matches the file on disk (-1: none)
+let historyKey = null; // project id owning the current history
+const stash = new Map(); // project id → { doc, history, text, savedText, savedRev } (session only)
 let prefsTimer = null;
 
 export function savePrefs() {
@@ -98,18 +103,31 @@ export function savePrefs() {
  * Replace the document (open / new / switch project).
  * `savedText` (the file content last written or read) restores the dirty state;
  * otherwise `saved` says whether the document matches its file.
+ * `historyKey` (a project id) keeps undo / redo per project for the session:
+ * coming back to a project whose content is unchanged restores its history.
  */
-export function setDoc(doc, { name, handle = null, baseUrl = null, dir = null, saved = true, savedText = null } = {}) {
-  store.doc = normalize(doc);
+export function setDoc(doc, { name, handle = null, baseUrl = null, dir = null, saved = true, savedText = null, historyKey: key = null } = {}) {
+  stashHistory();
+  const fresh = normalize(doc);
+  const text = serialize(fresh);
+  store.savedText = savedText != null ? savedText : saved ? text : '';
+  const kept = key != null ? stash.get(key) : null;
+  if (key != null) stash.delete(key);
+  if (kept && kept.text === text) {
+    store.doc = kept.doc;
+    history = kept.history;
+    savedRev = text === store.savedText ? history.rev : kept.savedText === store.savedText ? kept.savedRev : -1;
+  } else {
+    store.doc = fresh;
+    history = H.createHistory(store.doc);
+    savedRev = text === store.savedText ? history.rev : -1;
+  }
+  historyKey = key;
   store.selection = new Set();
   // dir: { handle, mapDir } when the map was opened through "Open folder" (disk.js)
   store.file = { handle, name: name || 'map.json', baseUrl, dir };
-  undoStack = [];
-  redoStack = [];
   pending = null;
-  const text = serialize(store.doc);
-  store.savedText = savedText != null ? savedText : saved ? text : '';
-  store.dirty = text !== store.savedText;
+  store.dirty = history.rev !== savedRev;
   store.background = null;
   if (!LAYERS.includes(store.activeLayer)) store.activeLayer = 'land';
   emit('load');
@@ -117,6 +135,39 @@ export function setDoc(doc, { name, handle = null, baseUrl = null, dir = null, s
   emit('selection');
   emit('dirty');
   emit('file');
+  emit('history');
+}
+
+/** Keep the current project's history for the session (switching projects). */
+function stashHistory() {
+  if (historyKey == null || (!history.undo.length && !history.redo.length)) return;
+  stash.delete(historyKey);
+  stash.set(historyKey, { doc: store.doc, history, text: serialize(store.doc), savedText: store.savedText, savedRev });
+  while (stash.size > MAX_STASHED) stash.delete(stash.keys().next().value);
+}
+
+/** Forget the kept history of a project (deleted). */
+export function dropHistory(key) {
+  stash.delete(key);
+  if (key === historyKey) historyKey = null;
+}
+
+/**
+ * Replace the content of the open document as one undoable step (e.g. the
+ * linked file changed on disk and was reloaded). savedText: the file content.
+ */
+export function replaceDoc(doc, { savedText = null, label = { key: 'reload' } } = {}) {
+  if (pending) endChange();
+  const selBefore = [...store.selection];
+  store.doc = normalize(doc);
+  const step = H.commit(history, store.doc, { label, selBefore, selAfter: selBefore, keepRev: savedRev });
+  if (savedText != null) {
+    store.savedText = savedText;
+    savedRev = serialize(store.doc) === savedText ? history.rev : -1;
+  }
+  afterChange();
+  emit('history');
+  return !!step;
 }
 
 /** A new empty document using the preset chosen for new maps. */
@@ -124,33 +175,49 @@ export function emptyDoc(opts = {}) {
   return createEmptyMap({ preset: store.prefs.newMapPreset || 'graphite', ...opts });
 }
 
-/** Start a change: remembers the state before it for undo. Nested calls are merged. */
-export function beginChange() {
-  if (pending === null) pending = serialize(store.doc);
+/**
+ * Start a change: everything until endChange() becomes one undo step.
+ * Nested calls are merged. opts: { merge?: string (repeated changes with the
+ * same key within a second become one step, e.g. nudges), label?: { key, name?, count? } }
+ */
+export function beginChange(opts = {}) {
+  if (pending === null) pending = { selBefore: [...store.selection], opts: { ...opts } };
+  else pending.opts = { ...opts, ...pending.opts };
 }
 
 /** Finish a change started with beginChange(). */
 export function endChange() {
   if (pending === null) return;
-  const before = pending;
+  const { selBefore, opts } = pending;
   pending = null;
-  const now = serialize(store.doc);
-  if (now !== before) {
-    undoStack.push(before);
-    if (undoStack.length > MAX_UNDO) undoStack.shift();
-    redoStack = [];
-  }
-  afterChange(now);
+  pruneSelection();
+  const step = H.commit(history, store.doc, {
+    label: opts.label, merge: opts.merge, selBefore, selAfter: [...store.selection], keepRev: savedRev,
+  });
+  afterChange();
+  if (step) emit('history');
 }
 
-/** Apply a mutation to the document as one undoable step. */
-export function change(fn) {
-  beginChange();
+/** Drop the uncommitted edits of an open change (the document goes back to its last committed state). */
+export function abortChange() {
+  if (pending === null) return;
+  pending = null;
+  const { patch } = H.diff(history.index, store.doc);
+  if (patch) H.apply(store.doc, history.index, patch, 'b');
+  afterChange();
+}
+
+/** Apply a mutation to the document as one undoable step (rolled back if it throws). */
+export function change(fn, opts) {
+  const outer = pending === null;
+  beginChange(opts);
   try {
     fn(store.doc);
-  } finally {
-    endChange();
+  } catch (e) {
+    if (outer) abortChange();
+    throw e;
   }
+  if (outer) endChange();
 }
 
 /** During drags: re-render without creating an undo step. */
@@ -158,10 +225,13 @@ export function liveUpdate() {
   emit('doc', { live: true });
 }
 
-function afterChange(text = serialize(store.doc)) {
+/** A change or gesture (drag) is open: undo / redo wait for it. */
+export const isChanging = () => pending !== null;
+
+function afterChange() {
   pruneSelection();
   const wasDirty = store.dirty;
-  store.dirty = text !== store.savedText;
+  store.dirty = history.rev !== savedRev;
   emit('doc', {});
   if (wasDirty !== store.dirty) emit('dirty');
 }
@@ -175,30 +245,74 @@ function pruneSelection() {
   if (changed) emit('selection');
 }
 
-export function canUndo() { return undoStack.length > 0; }
-export function canRedo() { return redoStack.length > 0; }
+export function canUndo() { return history.undo.length > 0 && pending === null; }
+export function canRedo() { return history.redo.length > 0 && pending === null; }
 
+function restoreSelection(ids) {
+  store.selection = new Set(ids.filter((id) => {
+    const hit = findById(store.doc, id);
+    return hit && (hit.kind === 'poi' || hit.kind === 'feature');
+  }));
+  emit('selection');
+}
+
+/** Undo one step. Returns its label ({ key, name?, count? }) or null. */
 export function undo() {
-  if (!undoStack.length) return false;
-  redoStack.push(serialize(store.doc));
-  store.doc = normalize(undoStack.pop());
+  if (pending !== null) return null;
+  const step = H.undo(history, store.doc);
+  if (!step) return null;
+  restoreSelection(step.selBefore);
   afterChange();
-  emit('selection');
-  return true;
+  emit('history');
+  return H.labelOf(step);
 }
 
+/** Redo one step. Returns its label or null. */
 export function redo() {
-  if (!redoStack.length) return false;
-  undoStack.push(serialize(store.doc));
-  store.doc = normalize(redoStack.pop());
+  if (pending !== null) return null;
+  const step = H.redo(history, store.doc);
+  if (!step) return null;
+  restoreSelection(step.selAfter);
   afterChange();
-  emit('selection');
+  emit('history');
+  return H.labelOf(step);
+}
+
+/**
+ * The history for menus: { undo: [label…] (oldest first), redo: [label…] (next first) }.
+ * Labels: { key, name?, count? } (i18n: history.action.<key>).
+ */
+export function historyList() {
+  return { undo: history.undo.map(H.labelOf), redo: history.redo.slice().reverse().map(H.labelOf) };
+}
+
+/** Jump in the history: n > 0 redoes n steps, n < 0 undoes -n steps (one re-render). */
+export function historyJump(n) {
+  if (pending !== null || !n) return false;
+  let last = null;
+  for (let i = 0; i < Math.abs(n); i++) {
+    const step = n < 0 ? H.undo(history, store.doc) : H.redo(history, store.doc);
+    if (!step) break;
+    last = { step, back: n < 0 };
+  }
+  if (!last) return false;
+  restoreSelection(last.back ? last.step.selBefore : last.step.selAfter);
+  afterChange();
+  emit('history');
   return true;
 }
 
-export function markSaved(text = serialize(store.doc)) {
+/** Label of the step Undo / Redo would apply, or null. */
+export const undoLabel = () => (history.undo.length ? H.labelOf(history.undo[history.undo.length - 1]) : null);
+export const redoLabel = () => (history.redo.length ? H.labelOf(history.redo[history.redo.length - 1]) : null);
+
+/** Current document revision (pass to markSaved when the text was taken earlier). */
+export const revision = () => history.rev;
+
+export function markSaved(text = serialize(store.doc), rev = history.rev) {
   store.savedText = text;
-  store.dirty = false;
+  savedRev = rev;
+  store.dirty = history.rev !== savedRev;
   emit('dirty');
 }
 

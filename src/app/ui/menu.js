@@ -88,7 +88,7 @@ function show(el, opts) {
 }
 
 /**
- * Show a menu. items: [{ label, icon?, kbd?, onClick, danger?, disabled?, hint?, checked? (radio item), lang? } | '-' (separator) | { heading }]
+ * Show a menu. items: [{ label, icon?, kbd?, onClick, danger?, disabled?, hint?, checked? (radio item), lang?, className? } | '-' (separator) | { heading }]
  * opts: { anchor?, x?, y?, align?: 'start'|'end'|'center', side?: 'bottom'|'top'|'right'|'left', className?, minWidth?, onClose?, focus? }
  */
 export function openMenu(items, opts = {}) {
@@ -101,7 +101,7 @@ export function openMenu(items, opts = {}) {
     const ico = radio ? (it.checked ? 'check' : null) : it.icon;
     el.append(h('button', {
       type: 'button', role: radio ? 'menuitemradio' : 'menuitem', 'aria-checked': radio ? String(it.checked) : null,
-      class: `menu-item${it.danger ? ' danger' : ''}${it.checked ? ' checked' : ''}`, disabled: !!it.disabled, title: it.hint || null, lang: it.lang || null,
+      class: `menu-item${it.danger ? ' danger' : ''}${it.checked ? ' checked' : ''}${it.className ? ` ${it.className}` : ''}`, disabled: !!it.disabled, title: it.hint || null, lang: it.lang || null,
       onclick: () => { closeMenu(); it.onClick?.(); },
     }, ico ? icon(ico) : h('span', { class: 'ico ico-blank' }), h('span', { class: 'menu-label' }, it.label), it.kbd ? h('kbd', {}, it.kbd) : null));
   }

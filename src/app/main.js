@@ -3,6 +3,7 @@
 
 import {
   store, on, emit, undo, redo, change, select, clearSelection, setTool, selectedItems, isLayerLocked, isLayerVisible,
+  isChanging,
 } from './state.js';
 import { Canvas } from './canvas.js';
 import { TOOLS } from './tools/index.js';
@@ -24,7 +25,7 @@ import { installColorPicker } from './ui/color-picker.js';
 import { mountDock } from './ui/dock.js';
 import { mountMinimap } from './ui/minimap.js';
 import {
-  mountTitlePill, mountPanelToggles, mountHistory, mountZoomPill, mountReadout, mountHud,
+  mountTitlePill, mountPanelToggles, mountHistory, mountZoomPill, mountReadout, mountHud, historyLabel,
 } from './ui/chrome.js';
 import { closeMenu, isMenuOpen } from './ui/menu.js';
 import { applyTheme, openSettings } from './settings.js';
@@ -78,8 +79,24 @@ function deleteSelection() {
   toast(plural('toast.deleted', items.length), { timeout: 2500 });
 }
 
-const undoCmd = () => { if (!undo()) toast(t('toast.nothingToUndo'), { timeout: 1200 }); };
-const redoCmd = () => { if (!redo()) toast(t('toast.nothingToRedo'), { timeout: 1200 }); };
+// Undo / redo: a short notice names the step (one notice at a time, so holding Ctrl+Z does not pile them up)
+let historyNotice = null;
+const notice = (message) => {
+  historyNotice?.();
+  historyNotice = toast(message, { timeout: 1400 });
+};
+const undoCmd = () => {
+  // a line being drawn: take back its last point first
+  if (TOOLS[store.tool]?.onUndo?.(canvas)) { updateHud(); return; }
+  if (isChanging()) return; // mid-drag: finish the gesture first
+  const label = undo();
+  notice(label ? t('history.undone', { action: historyLabel(label) }) : t('toast.nothingToUndo'));
+};
+const redoCmd = () => {
+  if (isChanging()) return;
+  const label = redo();
+  notice(label ? t('history.redone', { action: historyLabel(label) }) : t('toast.nothingToRedo'));
+};
 
 // --- chrome ------------------------------------------------------------------------
 const sidebar = mountSidebar({ openSettings });
@@ -115,6 +132,7 @@ const KEY_TOOLS = { v: 'select', h: 'pan', l: 'line', p: 'polygon', w: 'wall', b
 function nudge(dx, dy) {
   const items = selectedItems();
   if (!items.length) return false;
+  // repeated arrow presses within a second are one undo step
   change(() => {
     for (const { hit } of items) {
       if (hit.kind === 'poi' && !isLayerLocked('pois')) {
@@ -125,7 +143,7 @@ function nudge(dx, dy) {
         hit.item.points = hit.item.points.map(([x, y]) => [x + dx, y + dy]);
       }
     }
-  });
+  }, { merge: 'nudge' });
   return true;
 }
 
@@ -143,8 +161,8 @@ document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') e.target.blur();
     return;
   }
-  if (mod && k === 'z') { e.preventDefault(); if (e.shiftKey) redo(); else undo(); return; }
-  if (mod && k === 'y') { e.preventDefault(); redo(); return; }
+  if (mod && k === 'z') { e.preventDefault(); if (e.shiftKey) redoCmd(); else undoCmd(); return; }
+  if (mod && k === 'y') { e.preventDefault(); redoCmd(); return; }
   if (mod && k === 'a') {
     e.preventDefault();
     const l = store.activeLayer;

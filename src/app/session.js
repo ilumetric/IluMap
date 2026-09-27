@@ -6,7 +6,7 @@
 // working copy; Save (Ctrl+S) writes the file.
 
 import * as P from './projects.js';
-import { store, on, emit, setDoc, emptyDoc, change, savePrefs } from './state.js';
+import { store, on, emit, setDoc, replaceDoc, dropHistory, emptyDoc, change, savePrefs } from './state.js';
 import { normalize, serialize } from '../core/model.js';
 import { LAND_MODES } from '../core/schema.js';
 import { PRESETS } from '../core/styles.js';
@@ -154,6 +154,7 @@ async function openRecord(rec) {
     setDoc(doc, {
       name: rec.fileName || 'map.json', handle: rec.fileHandle || null, baseUrl: rec.baseUrl || null, savedText: rec.savedText ?? rec.doc,
       dir: rec.dirHandle ? { handle: rec.dirHandle, mapDir: rec.mapDir || [] } : null,
+      historyKey: rec.id, // undo / redo survive switching between projects (this session)
     });
   } finally {
     loading = false;
@@ -208,7 +209,10 @@ async function reloadFromDisk(handle, text) {
   const canonical = serialize(doc);
   loading = true;
   try {
-    setDoc(doc, { name: handle.name, handle, baseUrl: null, dir: store.file.dir || null, savedText: canonical });
+    // one undoable step: Ctrl+Z brings back the version from before the reload
+    replaceDoc(doc, { savedText: canonical });
+    store.file = { ...store.file, handle, name: handle.name, baseUrl: null };
+    emit('file');
   } finally {
     loading = false;
   }
@@ -531,6 +535,7 @@ export async function deleteProject(id) {
   const ok = await confirmDialog(t(rec.fileHandle ? 'dialogs.deleteMap.messageLinked' : 'dialogs.deleteMap.messageUnlinked', { name: rec.name }), { title: t('dialogs.deleteMap.title'), okText: t('dialogs.deleteMap.ok'), danger: true });
   if (!ok) return;
   const wasCurrent = store.project?.id === id;
+  dropHistory(id);
   if (wasCurrent) { clearTimeout(persistTimer); persistTimer = 0; unpersisted = false; store.project = null; }
   try { await P.remove(id); } catch (e) { toast(t('toast.deleteFailed', { error: e.message }), { type: 'error' }); }
   cache = cache.filter((p) => p.id !== id);

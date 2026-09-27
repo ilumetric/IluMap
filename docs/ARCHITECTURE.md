@@ -219,11 +219,30 @@ tokens and component anatomy). The chrome's theme (System / Dark / Light,
 only colours map content.
 
 * `state.js` — single in-memory document + selection + tool state, undo/redo
-  as snapshots of the serialized doc (cheap at this size), dirty flag (= the
+  (`core/history.js`: every step is a patch of the changed items only — see
+  below), dirty flag (= the
   document differs from the file it was last read from / saved to), UI prefs
   in localStorage (panels, layer visibility/lock, snapping, …). Tiny event
   bus (`on` / `emit`): `doc`, `selection`, `layers`, `tool`, `view`, `dirty`,
   `file`, `load`, `project`, `projects`, `panels`, `prefs`, `theme`, …
+  Undo / redo: the history keeps an index of the committed document — one
+  JSON string per top-level value (`meta`, `view`, `style`, `terrain`, …)
+  and per item of the id-keyed collections (features of each layer, POIs),
+  plus each collection's order. `endChange()` stringifies the document again
+  and stores only the slots that differ (before / after), so memory grows
+  with what was edited, not with the map, and undo writes those slots back
+  without re-parsing the whole file. Steps carry the selection before / after
+  (restored on undo / redo), a label derived from the patch (Move, Edit
+  shape, Add, Delete, Style, … shown in tooltips, the notice and the history
+  menu) and a revision id; the dirty flag compares revisions, so undoing back
+  to the saved state is clean again. `change(fn, { merge: 'nudge' })` folds
+  repeated edits within a second into one step (arrow-key nudges). A change
+  that throws is rolled back. Undo waits while a drag is open; a line being
+  drawn gives back its last point first. Limits: 500 steps / 64 MB, oldest
+  dropped first. Histories live in memory only — per project for the session
+  (switching projects keeps them while the content is unchanged), never
+  written anywhere. Reloading the linked file from disk is itself an
+  undoable step.
 * `projects.js` — IndexedDB storage of local projects (below).
 * `session.js` — the workspace: which project is open, autosave, new / open /
   import / switch / rename / duplicate / delete, background blobs, first

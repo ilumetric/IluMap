@@ -1,7 +1,7 @@
 // Save (File System Access API with fallbacks), exports, background image,
 // POI placement. Opening / importing maps lives in session.js.
 
-import { store, markSaved, change, emit, visibleLayers } from './state.js';
+import { store, markSaved, change, emit, visibleLayers, revision } from './state.js';
 import { normalize, serialize, validate, findById, zoneOf, extractSelection, selectionBounds } from '../core/model.js';
 import { renderSvg } from '../core/render-svg.js';
 import { toText } from '../core/text-export.js';
@@ -60,11 +60,12 @@ export async function save() {
         if (p !== 'granted') throw new Error(t('toast.permissionDenied'));
       }
       if (beforeSave && !(await beforeSave())) return false;
+      const rev = revision();
       const text = serialize(store.doc);
       const w = await store.file.handle.createWritable();
       await w.write(text);
       await w.close();
-      markSaved(text);
+      markSaved(text, rev); // edits made while writing stay dirty
       emit('file');
       toast(t('toast.saved', { file: store.file.name }), { type: 'ok', timeout: 1800 });
       return true;
@@ -77,6 +78,7 @@ export async function save() {
 }
 
 export async function saveAs() {
+  const rev = revision();
   const text = serialize(store.doc);
   const v = validate(store.doc);
   if (!v.ok) toast(t('toast.savingWithErrors', { errors: plural('count.errors', v.errors.length), first: `${v.errors[0].path}: ${v.errors[0].message}` }), { type: 'warn', timeout: 7000 });
@@ -87,7 +89,7 @@ export async function saveAs() {
       await w.write(text);
       await w.close();
       store.file = { ...store.file, handle, name: handle.name, baseUrl: null };
-      markSaved(text);
+      markSaved(text, rev);
       emit('file');
       toast(t('toast.saved', { file: handle.name }), { type: 'ok', timeout: 1800 });
       return true;
@@ -97,7 +99,7 @@ export async function saveAs() {
     }
   }
   download(store.file.name || 'map.json', text, 'application/json');
-  markSaved(text);
+  markSaved(text, rev);
   emit('file');
   toast(t('toast.downloaded', { file: store.file.name || 'map.json' }), { timeout: 5000 });
   return true;
