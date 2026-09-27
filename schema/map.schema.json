@@ -1,0 +1,211 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "IluMap map.json (format version 1)",
+  "description": "Vector map of a game world. Coordinates are world units (meta.units). See docs/FORMAT.md. Cross-reference rules (unique ids across features, POIs, gates and link ids; link endpoints must exist; POI zone must be a zone id; gate 'at' must be a valid vertex index) are checked by validate() in src/core/schema.js and `node tools/ilumap.mjs validate`.",
+  "type": "object",
+  "required": ["format", "version"],
+  "properties": {
+    "format": { "const": "ilumap" },
+    "version": { "const": 1 },
+    "meta": { "$ref": "#/$defs/meta" },
+    "view": { "$ref": "#/$defs/view" },
+    "style": { "$ref": "#/$defs/style" },
+    "layers": { "$ref": "#/$defs/layers" },
+    "pois": { "type": "array", "items": { "$ref": "#/$defs/poi" } },
+    "links": { "type": "array", "items": { "$ref": "#/$defs/link" } }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[a-z0-9_]+$" },
+    "color": { "type": "string", "pattern": "^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$" },
+    "point": {
+      "type": "array",
+      "prefixItems": [{ "type": "number" }, { "type": "number" }],
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "tags": { "type": "array", "items": { "type": "string" } },
+    "meta": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "default": "Untitled" },
+        "description": { "type": "string", "default": "" },
+        "units": { "type": "string", "default": "cm" },
+        "displayUnit": { "type": "string", "default": "m" },
+        "displayUnitScale": { "type": "number", "exclusiveMinimum": 0, "default": 100 },
+        "flipY": { "type": "boolean", "default": false },
+        "landMode": { "enum": ["islands", "filled"], "default": "islands" }
+      }
+    },
+    "view": {
+      "type": "object",
+      "properties": {
+        "bounds": {
+          "type": "object",
+          "required": ["min", "max"],
+          "properties": { "min": { "$ref": "#/$defs/point" }, "max": { "$ref": "#/$defs/point" } }
+        },
+        "background": {
+          "type": "object",
+          "properties": {
+            "src": { "type": "string" },
+            "opacity": { "type": "number", "minimum": 0, "maximum": 1 },
+            "calibration": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": {
+                "type": "object",
+                "required": ["px", "world"],
+                "properties": { "px": { "$ref": "#/$defs/point" }, "world": { "$ref": "#/$defs/point" } }
+              }
+            }
+          }
+        },
+        "grid": {
+          "type": "object",
+          "properties": {
+            "step": { "type": "number", "exclusiveMinimum": 0 },
+            "visible": { "type": "boolean" }
+          }
+        }
+      }
+    },
+    "styleEntry": {
+      "type": "object",
+      "properties": {
+        "fill": { "anyOf": [{ "$ref": "#/$defs/color" }, { "type": "null" }] },
+        "stroke": { "anyOf": [{ "$ref": "#/$defs/color" }, { "type": "null" }] },
+        "color": { "anyOf": [{ "$ref": "#/$defs/color" }, { "type": "null" }] },
+        "width": { "type": "number", "minimum": 0 },
+        "dash": { "type": ["string", "null"] },
+        "opacity": { "type": "number", "minimum": 0, "maximum": 1 },
+        "pattern": { "type": "string", "description": "zones: hatch | dots; walls: crenel | ticks" },
+        "icon": { "enum": ["house", "castle", "pick", "ruin", "tent", "gate", "dot"] }
+      }
+    },
+    "styleMap": { "type": "object", "additionalProperties": { "$ref": "#/$defs/styleEntry" } },
+    "style": {
+      "type": "object",
+      "properties": {
+        "preset": { "type": "string", "enum": ["blueprint", "parchment"] },
+        "ocean": { "$ref": "#/$defs/color" },
+        "label": { "$ref": "#/$defs/color" },
+        "grid": { "$ref": "#/$defs/color" },
+        "layers": { "$ref": "#/$defs/styleMap" },
+        "lineTypes": { "$ref": "#/$defs/styleMap" },
+        "wallTypes": { "$ref": "#/$defs/styleMap" },
+        "zoneTypes": { "$ref": "#/$defs/styleMap" },
+        "poiTypes": { "$ref": "#/$defs/styleMap" }
+      }
+    },
+    "featureBase": {
+      "type": "object",
+      "required": ["id", "points"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "name": { "type": "string" },
+        "type": { "type": "string" },
+        "points": { "type": "array", "items": { "$ref": "#/$defs/point" } },
+        "closed": { "type": "boolean" },
+        "smooth": { "type": "boolean" },
+        "width": { "type": "number", "exclusiveMinimum": 0 },
+        "color": { "anyOf": [{ "$ref": "#/$defs/color" }, { "type": "null" }] },
+        "tags": { "$ref": "#/$defs/tags" },
+        "notes": { "type": "string" },
+        "hidden": { "type": "boolean" }
+      }
+    },
+    "polygonFeature": {
+      "allOf": [{ "$ref": "#/$defs/featureBase" }],
+      "properties": {
+        "kind": { "const": "polygon" },
+        "points": { "minItems": 3 },
+        "wall": false
+      }
+    },
+    "lineFeature": {
+      "allOf": [{ "$ref": "#/$defs/featureBase" }],
+      "properties": {
+        "kind": { "const": "line" },
+        "points": { "minItems": 2 },
+        "wall": false
+      }
+    },
+    "wallFeature": {
+      "allOf": [{ "$ref": "#/$defs/featureBase" }],
+      "properties": {
+        "kind": { "const": "line" },
+        "points": { "minItems": 2 },
+        "wall": { "$ref": "#/$defs/wall" }
+      }
+    },
+    "wall": {
+      "type": "object",
+      "properties": {
+        "towers": { "enum": ["none", "vertices", "auto"] },
+        "towerSpacing": { "type": "number", "exclusiveMinimum": 0 },
+        "towerSize": { "type": "number", "exclusiveMinimum": 0 },
+        "gates": { "type": "array", "items": { "$ref": "#/$defs/gate" } }
+      }
+    },
+    "gate": {
+      "type": "object",
+      "required": ["id"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "name": { "type": "string" },
+        "at": { "type": "integer", "minimum": 0 },
+        "t": { "type": "number", "minimum": 0, "maximum": 1 }
+      },
+      "oneOf": [
+        { "required": ["at"], "not": { "required": ["t"] } },
+        { "required": ["t"], "not": { "required": ["at"] } }
+      ]
+    },
+    "layers": {
+      "type": "object",
+      "propertyNames": { "pattern": "^(land|water|coast|rivers|roads|rails|walls|zones|x_.*)$" },
+      "properties": {
+        "land": { "type": "array", "items": { "$ref": "#/$defs/polygonFeature" } },
+        "water": { "type": "array", "items": { "$ref": "#/$defs/polygonFeature" } },
+        "coast": { "type": "array", "items": { "$ref": "#/$defs/lineFeature" } },
+        "rivers": { "type": "array", "items": { "$ref": "#/$defs/lineFeature" } },
+        "roads": { "type": "array", "items": { "$ref": "#/$defs/lineFeature" } },
+        "rails": { "type": "array", "items": { "$ref": "#/$defs/lineFeature" } },
+        "walls": { "type": "array", "items": { "$ref": "#/$defs/wallFeature" } },
+        "zones": { "type": "array", "items": { "$ref": "#/$defs/polygonFeature" } }
+      }
+    },
+    "poi": {
+      "type": "object",
+      "required": ["id", "name", "x", "y", "type"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "name": { "type": "string", "minLength": 1 },
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "type": { "type": "string", "minLength": 1 },
+        "zone": { "anyOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
+        "tags": { "$ref": "#/$defs/tags" },
+        "status": { "enum": ["idea", "approved", "slice", "cut"], "default": "idea" },
+        "notes": { "type": "string" },
+        "anchor": { "type": "string" },
+        "color": { "anyOf": [{ "$ref": "#/$defs/color" }, { "type": "null" }] },
+        "placed": { "type": "boolean", "default": true }
+      }
+    },
+    "link": {
+      "type": "object",
+      "required": ["from", "to", "type"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "from": { "$ref": "#/$defs/id" },
+        "to": { "$ref": "#/$defs/id" },
+        "type": { "type": "string", "minLength": 1, "description": "road | rail | river | path | quest | sight | any custom string" },
+        "name": { "type": "string" },
+        "feature": { "anyOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
+        "notes": { "type": "string" }
+      }
+    }
+  }
+}

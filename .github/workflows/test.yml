@@ -1,0 +1,25 @@
+name: test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Unit tests
+        run: node --test "test/*.test.js"
+      - name: Demo map is valid and canonical
+        run: |
+          node tools/ilumap.mjs validate examples/demo/map.json
+          node tools/ilumap.mjs fmt examples/demo/map.json --check
+      - name: CLI smoke test
+        run: |
+          node tools/ilumap.mjs text examples/demo/map.json > /dev/null
+          node tools/ilumap.mjs svg examples/demo/map.json --width 512 > /dev/null
+          node tools/ilumap.mjs mask examples/demo/map.json --source land --size 256 --out "$RUNNER_TEMP/masks"

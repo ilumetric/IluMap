@@ -1,0 +1,18 @@
+{
+  "name": "ilumap",
+  "version": "0.1.0",
+  "description": "Vector map editor for game worlds. Static site, no build step, map.json is the source of truth.",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "ilumap": "tools/ilumap.mjs"
+  },
+  "scripts": {
+    "test": "node --test \"test/*.test.js\"",
+    "validate": "node tools/ilumap.mjs validate examples/demo/map.json",
+    "serve": "python -m http.server 8765"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

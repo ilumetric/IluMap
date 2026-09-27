@@ -1,0 +1,124 @@
+// Shared implementation of the line / polygon / wall drawing tools.
+// Click adds a vertex, Enter / double-click / right-click finishes, C closes
+// (lines and walls), Backspace removes the last vertex, Esc cancels.
+// Shift snaps to the grid. Clicking the first vertex closes the shape.
+
+import { store, change, select, setActiveLayer, emit } from '../state.js';
+import { LAYER_KIND, LAYER_ID_PREFIX, DEFAULT_WALL } from '../../core/schema.js';
+import { nextId } from '../../core/model.js';
+import { toView } from '../../core/render-svg.js';
+import { linearPath, catmullRomToPath, polylineLength, polygonArea } from '../../core/geometry.js';
+import { formatLength, formatArea } from '../../core/text-export.js';
+import { toast } from '../dom.js';
+
+const DEFAULT_TYPES = { rivers: 'river_minor', roads: 'road_dirt', rails: 'rail', walls: 'wall_stone' };
+
+export function defaultTypeFor(layer) {
+  if (layer === 'zones') return store.prefs.lastZoneType || 'plains';
+  return DEFAULT_TYPES[layer];
+}
+
+/** Pick the layer a tool draws into, switching the active layer when needed. */
+export function targetLayer(kind, wall) {
+  if (wall) return 'walls';
+  const active = store.activeLayer;
+  if (kind === 'line' && LAYER_KIND[active] === 'line') return active;
+  if (kind === 'polygon' && LAYER_KIND[active] === 'polygon') return active;
+  return kind === 'line' ? (store.prefs.lastLineLayer || 'roads') : (store.prefs.lastPolygonLayer || 'land');
+}
+
+export function createDrawTool({ id, label, key, icon, kind, wall = false }) {
+  let pts = [];
+  let hover = null;
+
+  const layer = () => targetLayer(kind, wall);
+  const minPts = kind === 'polygon' ? 3 : 2;
+
+  function finish(canvas, { close = false } = {}) {
+    if (pts.length < minPts) {
+      if (pts.length) toast(`Need at least ${minPts} points`, { type: 'warn' });
+      return;
+    }
+    const l = layer();
+    const f = { id: nextId(store.doc, LAYER_ID_PREFIX[l]), kind: LAYER_KIND[l] };
+    const type = defaultTypeFor(l);
+    if (type) f.type = type;
+    f.points = pts.map((p) => p.slice());
+    if (kind === 'line' && close && pts.length >= 3) f.closed = true;
+    if (l !== 'walls') f.smooth = true;
+    if (l === 'walls') {
+      f.width = 300;
+      f.wall = { ...DEFAULT_WALL, gates: [] };
+    }
+    change((doc) => { doc.layers[l].push(f); });
+    pts = [];
+    hover = null;
+    select(f.id);
+    emit('drawn', { id: f.id, layer: l });
+    canvas?.invalidate('tool');
+  }
+
+  return {
+    id, label, key, icon,
+    get drawing() { return pts.length > 0; },
+    hint() {
+      const l = layer();
+      const base = `Drawing into “${l}”. Click to add points · Enter or double-click to finish`;
+      return `${base}${kind === 'line' ? ' · C to close' : ''} · Backspace removes the last point · Shift snaps · Esc cancels`;
+    },
+    activate() {
+      const l = layer();
+      if (store.activeLayer !== l) setActiveLayer(l);
+    },
+    deactivate() { pts = []; hover = null; },
+
+    down(ctx) {
+      const p = ctx.shift ? ctx.canvas.snap(ctx.world) : ctx.world.map(Math.round);
+      if (ctx.clicks >= 2 && pts.length) { finish(ctx.canvas); return; }
+      // clicking the first point closes the shape
+      if (pts.length >= minPts) {
+        const s0 = ctx.canvas.worldToScreen(pts[0]);
+        if (Math.hypot(s0[0] - ctx.screen[0], s0[1] - ctx.screen[1]) < 9) {
+          finish(ctx.canvas, { close: true });
+          return;
+        }
+      }
+      pts.push(p);
+      hover = p;
+      ctx.canvas.invalidate('tool');
+      emit('hud');
+    },
+    move(ctx) {
+      hover = ctx.shift ? ctx.canvas.snap(ctx.world) : ctx.world;
+      if (pts.length) { ctx.canvas.invalidate('tool'); emit('hud'); }
+    },
+    contextmenu(ctx) { if (pts.length) finish(ctx.canvas); },
+    onKey(e, canvas) {
+      if (e.key === 'Enter') { finish(canvas); return true; }
+      if ((e.key === 'c' || e.key === 'C') && pts.length) { finish(canvas, { close: true }); return true; }
+      if (e.key === 'Backspace' && pts.length) { pts.pop(); canvas.invalidate('tool'); emit('hud'); return true; }
+      if (e.key === 'Escape' && pts.length) { pts = []; hover = null; canvas.invalidate('tool'); emit('hud'); return true; }
+      return false;
+    },
+    status() {
+      if (!pts.length) return '';
+      const all = hover ? [...pts, hover] : pts;
+      if (kind === 'polygon' && all.length >= 3) return `${pts.length} pts · area ${formatArea(polygonArea(all), store.doc.meta)}`;
+      return `${pts.length} pts · ${formatLength(polylineLength(all), store.doc.meta)}`;
+    },
+    overlay(canvas) {
+      if (!pts.length) return '';
+      const upp = canvas.unitsPerPx;
+      const V = (p) => toView(store.doc, p);
+      const all = (hover ? [...pts, hover] : pts).map(V);
+      const closed = kind === 'polygon';
+      const d = all.length >= 3 && layer() !== 'walls' ? catmullRomToPath(all, closed) : linearPath(all, closed);
+      let s = `<path d="${d}" class="ov-draft${kind === 'polygon' ? ' fill' : ''}" stroke-width="${2 * upp}"/>`;
+      s += `<path d="${linearPath(all, closed)}" class="ov-cage" stroke-width="${upp}"/>`;
+      pts.map(V).forEach(([x, y], i) => {
+        s += `<circle cx="${x}" cy="${y}" r="${(i === 0 ? 5.5 : 4) * upp}" class="ov-vertex${i === 0 ? ' first' : ''}" stroke-width="${1.5 * upp}"/>`;
+      });
+      return s;
+    },
+  };
+}
