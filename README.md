@@ -41,17 +41,27 @@ derived from that file.
 ## Quick start
 
 Open the hosted editor on GitHub Pages (`https://<you>.github.io/<repo>/`), or
-run it locally from the repo root with any static server:
+run it locally with the bundled server (Node 20+, no packages):
 
 ```bash
-python -m http.server 8765        # then open http://localhost:8765/
-# or
-npx serve .
+node tools/serve.mjs                 # the current folder is the project folder
+node tools/serve.mjs ../my-game --open maps/world/map.json
 ```
 
-ES modules do not load from `file://`, so a server is needed. On first launch the
-editor creates a local copy of the demo map (`examples/demo/map.json`);
-`?map=path/to/map.json` opens another map from the same site.
+Then open http://localhost:8765/. With this server **Save writes map files
+straight into the project folder** — no file dialogs, in any browser, also in
+embedded ones (the Claude app's browser, VS Code's) where the File System
+Access API cannot write — and **changes made on disk** (an AI agent, `git
+pull`) **show up in the editor within a few seconds** (reloaded when you have
+no unsaved edits, otherwise you choose). *Open file* lists the maps of the
+project folder; `?file=maps/world/map.json` opens one directly. The server
+listens on 127.0.0.1 only and writes `*.json` files inside the folder only.
+
+Any static server works too (`python -m http.server 8765`); the editor then
+saves through the browser's file pickers (Chrome, Edge). ES modules do not load
+from `file://`. On first launch the editor creates a local copy of the demo map
+(`examples/demo/map.json`); `?map=path/to/map.json` opens another map from the
+same site as a read-only source.
 
 ### Local maps and map.json
 
@@ -308,6 +318,9 @@ npm test          # = node --test "test/*.test.js" (no dependencies to install)
 - `src/app/` — the editor UI (DOM only). UI look and components:
   [docs/DESIGN.md](docs/DESIGN.md).
 - `tools/ilumap.mjs` — the CLI.
+- `tools/serve.mjs` — the local server (static files + file API for Save and
+  watching the map on disk); `.claude/launch.json` starts it for the Claude
+  app's browser.
 - `src/app/i18n/` — UI languages (see below).
 
 No build step, no npm packages — keep it that way.

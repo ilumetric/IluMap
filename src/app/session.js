@@ -13,6 +13,7 @@ import { PRESETS } from '../core/styles.js';
 import { parseMapText, fetchMapText, resolveBackground, attachBackgroundFile, exportJson, jsonPickerTypes, setBeforeSave } from './io.js';
 import { folderSupported, findMaps, findImages, permissionOf, requestPermission, relativePath } from './disk.js';
 import { toast, confirmDialog, openDialog, download, h } from './dom.js';
+import { localServer, listServerMaps, readServerFile, statServerFile, serverHandle, serverBaseUrl, isServerHandle } from './localserver.js';
 import { t, label } from './i18n/index.js';
 
 export const DEMO_URL = 'examples/demo/map.json';
@@ -48,7 +49,9 @@ function recordFromStore(prev) {
     savedText: store.savedText,
     fileName: store.file.name || 'map.json',
     baseUrl: store.file.baseUrl || undefined,
-    fileHandle: store.file.handle || undefined,
+    // a map opened through the local server is remembered by its path (a handle object cannot be stored)
+    fileHandle: isServerHandle(store.file.handle) ? undefined : store.file.handle || undefined,
+    fileServerPath: isServerHandle(store.file.handle) ? store.file.handle.serverPath : undefined,
     dirHandle: store.file.dir?.handle || undefined,
     mapDir: store.file.dir?.mapDir || undefined,
     updatedAt: text !== prev.doc || !prev.updatedAt ? Date.now() : prev.updatedAt,
@@ -152,7 +155,7 @@ async function openRecord(rec) {
   store.project = rec;
   try {
     setDoc(doc, {
-      name: rec.fileName || 'map.json', handle: rec.fileHandle || null, baseUrl: rec.baseUrl || null, savedText: rec.savedText ?? rec.doc,
+      name: rec.fileName || 'map.json', handle: rec.fileServerPath ? serverHandle(rec.fileServerPath) : rec.fileHandle || null, baseUrl: rec.baseUrl || null, savedText: rec.savedText ?? rec.doc,
       dir: rec.dirHandle ? { handle: rec.dirHandle, mapDir: rec.mapDir || [] } : null,
       historyKey: rec.id, // undo / redo survive switching between projects (this session)
     });
@@ -182,7 +185,8 @@ async function createProject(doc, { fileName = 'map.json', handle = null, baseUr
   const now = Date.now();
   const rec = { id: P.newId(), name: doc.meta?.name || 'Untitled', createdAt: now, updatedAt: now, doc: text, savedText: savedText ?? text, fileName };
   if (baseUrl) rec.baseUrl = baseUrl;
-  if (handle) rec.fileHandle = handle;
+  if (isServerHandle(handle)) rec.fileServerPath = handle.serverPath;
+  else if (handle) rec.fileHandle = handle;
   if (dir) { rec.dirHandle = dir.handle; rec.mapDir = dir.mapDir; }
   try { await P.put(rec); } catch (e) { toast(t('toast.projectStoreFailed', { error: e.message }), { type: 'error' }); }
   upsertCache(rec);
@@ -203,7 +207,7 @@ async function importText(text, { name = 'map.json', handle = null, baseUrl = nu
 }
 
 /** Replace the open project's document with the file on disk. */
-async function reloadFromDisk(handle, text) {
+async function reloadFromDisk(handle, text, { quiet = false } = {}) {
   const doc = parseMapText(text, handle.name);
   if (!doc) return;
   const canonical = serialize(doc);
@@ -211,13 +215,13 @@ async function reloadFromDisk(handle, text) {
   try {
     // one undoable step: Ctrl+Z brings back the version from before the reload
     replaceDoc(doc, { savedText: canonical });
-    store.file = { ...store.file, handle, name: handle.name, baseUrl: null };
+    store.file = { ...store.file, handle, name: handle.name, baseUrl: isServerHandle(handle) ? serverBaseUrl(handle.serverPath) : null };
     emit('file');
   } finally {
     loading = false;
   }
   await persistNow();
-  toast(t('toast.reloaded', { file: handle.name }), { type: 'ok' });
+  if (!quiet) toast(t('toast.reloaded', { file: handle.name }), { type: 'ok' });
 }
 
 /** A file that is already a project: focus it and reconcile with the disk content. */
@@ -295,7 +299,7 @@ async function checkDiskOnFocus() {
     lastSeenExternal = ext.canonical;
     if (!store.dirty) {
       const before = store.savedText;
-      await reloadFromDisk(ext.handle, ext.text);
+      await reloadFromDisk(ext.handle, ext.text, { quiet: true }); // the notice below says it, with "Show changes"
       toast(t('toast.diskReloaded', { file: ext.handle.name }), {
         timeout: 8000,
         actions: [{
@@ -397,7 +401,41 @@ export async function allowFolderAccess() {
 // --- commands (sidebar, shortcuts, drag & drop) ----------------------------------------
 
 /** Sidebar "Open file" / Ctrl+O. */
+/** Open a map file of the local server's project folder, linked (Save writes it back). */
+export async function openServerFile(path) {
+  let text;
+  try { text = (await readServerFile(path)).text; } catch (e) {
+    toast(t('toast.openFailed', { error: `${path}: ${e.message}` }), { type: 'error' });
+    return false;
+  }
+  const handle = serverHandle(path);
+  const existing = cache.find((p) => p.fileServerPath === path);
+  if (existing) { await focusExisting(existing, handle, text); return true; }
+  const rec = await importText(text, { name: handle.name, handle, baseUrl: serverBaseUrl(path) });
+  if (rec) toast(t('toast.openedLinked', { file: path }));
+  return !!rec;
+}
+
 export async function openFileCommand() {
+  const srv = await localServer();
+  if (srv) {
+    let files = [];
+    try { files = await listServerMaps(); } catch { files = []; }
+    if (files.length) {
+      let other = false;
+      const res = await openDialog({
+        title: t('dialogs.openServer.title'),
+        message: t('dialogs.openServer.message', { folder: srv.folder }),
+        fields: [{ name: 'path', label: t('dialogs.openServer.file'), type: 'select', value: files[0], options: files.map((f) => [f, f]) }],
+        okText: t('dialogs.openServer.ok'),
+        onOpen: ({ form, close }) => {
+          form.querySelector('.dialog-actions').prepend(h('button', { type: 'button', class: 'btn', onclick: () => { other = true; close(null); } }, t('dialogs.openServer.other')));
+        },
+      });
+      if (res) { await openServerFile(res.path); return; }
+      if (!other) return;
+    }
+  }
   if ('showOpenFilePicker' in window) {
     let handle;
     try {
@@ -532,7 +570,7 @@ export async function exportProjectJson(id) {
 export async function deleteProject(id) {
   const rec = cache.find((p) => p.id === id) || await P.get(id);
   if (!rec) return;
-  const ok = await confirmDialog(t(rec.fileHandle ? 'dialogs.deleteMap.messageLinked' : 'dialogs.deleteMap.messageUnlinked', { name: rec.name }), { title: t('dialogs.deleteMap.title'), okText: t('dialogs.deleteMap.ok'), danger: true });
+  const ok = await confirmDialog(t(rec.fileHandle || rec.fileServerPath ? 'dialogs.deleteMap.messageLinked' : 'dialogs.deleteMap.messageUnlinked', { name: rec.name }), { title: t('dialogs.deleteMap.title'), okText: t('dialogs.deleteMap.ok'), danger: true });
   if (!ok) return;
   const wasCurrent = store.project?.id === id;
   dropHistory(id);
@@ -583,6 +621,10 @@ export async function initSession() {
   }
   await migrateLegacyDraft();
   await refreshList();
+  const serverFile = new URLSearchParams(location.search).get('file');
+  if (serverFile && (await localServer())) {
+    if (await openServerFile(serverFile)) return;
+  }
   const mapUrl = new URLSearchParams(location.search).get('map');
   if (mapUrl) {
     const abs = new URL(mapUrl, location.href).href;
@@ -598,6 +640,25 @@ export async function initSession() {
   if (last) await openRecord(last);
   else await createFromDemo();
 }
+
+// A map linked through the local server is watched: every few seconds its
+// modification time is compared (a tiny local request), and a change runs the
+// same check as returning to the tab (reload when clean, ask when edited).
+const WATCH_MS = 2500;
+let watchedPath = null;
+let watchedMtime = 0;
+setInterval(async () => {
+  const h = store.file.handle;
+  if (!isServerHandle(h) || document.visibilityState !== 'visible' || loading || checking) return;
+  try {
+    const st = await statServerFile(h.serverPath);
+    if (!st) return;
+    if (watchedPath !== h.serverPath) { watchedPath = h.serverPath; watchedMtime = st.mtime; return; }
+    if (st.mtime === watchedMtime) return;
+    watchedMtime = st.mtime;
+    await checkDiskOnFocus();
+  } catch { /* server stopped: try again later */ }
+}, WATCH_MS);
 
 // flush pending autosaves when the tab goes away
 window.addEventListener('pagehide', () => { if (persistTimer) persistNow(); });

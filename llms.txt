@@ -11,6 +11,8 @@ curl -O https://ilumetric.github.io/IluMap/ilumap.mjs
 node ilumap.mjs text map.json
 ```
 
+Editing next to a human in a browser: `node tools/serve.mjs <project folder>` (from the IluMap repo) serves the editor at http://localhost:8765/?file=<path/to/map.json>; the human's Save writes the file, your edits on disk show up in their editor within seconds.
+
 `node ilumap.mjs --help` lists every command (validate, fmt, text, list, svg, mask, terrain, diff, version, and any added later).
 
 ## Docs

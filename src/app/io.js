@@ -2,13 +2,14 @@
 // POI placement. Opening / importing maps lives in session.js.
 
 import { store, markSaved, change, emit, visibleLayers, revision } from './state.js';
+import { localServer, statServerFile, writeServerFile, serverHandle, serverBaseUrl, isServerHandle } from './localserver.js';
 import { normalize, serialize, validate, findById, zoneOf, extractSelection, selectionBounds } from '../core/model.js';
 import { renderSvg } from '../core/render-svg.js';
 import { toText } from '../core/text-export.js';
 import { renderMask, maskFileName, maskSidecar, stringifySidecar, usedMaskSources, zoneTypes } from '../core/render-mask.js';
 import { encodePngAsync } from '../core/png.js';
 import { fitPairs } from '../core/calibration.js';
-import { download, toast, openDialog, h } from './dom.js';
+import { download, toast, openDialog, confirmDialog, h } from './dom.js';
 import { t, label, plural } from './i18n/index.js';
 import { layerLabel } from './ui/layer-meta.js';
 import { permissionOf, resolvePath, fileAt } from './disk.js';
@@ -52,11 +53,17 @@ let beforeSave = null;
 /** session.js registers a check that runs before writing the linked file (changed on disk?). Resolve false to cancel. */
 export function setBeforeSave(fn) { beforeSave = fn; }
 
+// Set when writing through the File System Access API failed in this browser (embedded
+// browsers may offer the pickers but refuse the write): Save As then goes straight to a download.
+let fsWriteBroken = false;
+
 export async function save() {
   if (store.file.handle) {
     try {
-      if (store.file.handle.requestPermission) {
-        const p = await store.file.handle.requestPermission({ mode: 'readwrite' });
+      // ask only when the permission is not already there (each request can show a prompt)
+      const h = store.file.handle;
+      if (h.requestPermission && (await h.queryPermission?.({ mode: 'readwrite' })) !== 'granted') {
+        const p = await h.requestPermission({ mode: 'readwrite' });
         if (p !== 'granted') throw new Error(t('toast.permissionDenied'));
       }
       if (beforeSave && !(await beforeSave())) return false;
@@ -77,12 +84,46 @@ export async function save() {
   return saveAs();
 }
 
+/** Save As through the local server: a path inside its project folder. */
+async function saveToServer(srv, text, rev) {
+  const cur = isServerHandle(store.file.handle) ? store.file.handle.serverPath : '';
+  const res = await openDialog({
+    title: t('dialogs.saveServer.title'),
+    message: t('dialogs.saveServer.message', { folder: srv.folder }),
+    fields: [{ name: 'path', label: t('dialogs.saveServer.path'), type: 'text', value: cur || store.file.name || 'map.json' }],
+    okText: t('dialogs.saveServer.ok'),
+  });
+  if (!res) return false;
+  let p = String(res.path || '').trim().replace(/\\/g, '/').replace(/^\/+/, '');
+  if (!p) return false;
+  if (!/\.json$/i.test(p)) p += '.json';
+  try {
+    if (p !== cur && (await statServerFile(p))) {
+      const ok = await confirmDialog(t('dialogs.saveServer.exists', { path: p }), { title: t('dialogs.saveServer.title'), okText: t('dialogs.saveServer.overwrite'), danger: true });
+      if (!ok) return false;
+    }
+    await writeServerFile(p, text);
+  } catch (e) {
+    toast(t('toast.saveFailed', { error: e.message }), { type: 'error' });
+    return false;
+  }
+  const handle = serverHandle(p);
+  store.file = { ...store.file, handle, name: handle.name, baseUrl: serverBaseUrl(p) };
+  markSaved(text, rev);
+  emit('file');
+  toast(t('toast.saved', { file: p }), { type: 'ok', timeout: 1800 });
+  return true;
+}
+
 export async function saveAs() {
   const rev = revision();
   const text = serialize(store.doc);
   const v = validate(store.doc);
   if (!v.ok) toast(t('toast.savingWithErrors', { errors: plural('count.errors', v.errors.length), first: `${v.errors[0].path}: ${v.errors[0].message}` }), { type: 'warn', timeout: 7000 });
-  if ('showSaveFilePicker' in window) {
+  // the local server (tools/serve.mjs): a path in the project folder, no system dialogs
+  const srv = await localServer();
+  if (srv) return saveToServer(srv, text, rev);
+  if ('showSaveFilePicker' in window && !fsWriteBroken) {
     try {
       const handle = await window.showSaveFilePicker({ suggestedName: store.file.name || 'map.json', types: jsonTypes() });
       const w = await handle.createWritable();
@@ -95,7 +136,8 @@ export async function saveAs() {
       return true;
     } catch (e) {
       if (e.name === 'AbortError') return false;
-      toast(t('toast.saveFailedDownload', { error: e.message }), { type: 'warn' });
+      fsWriteBroken = true; // next time: one download dialog, not a picker and then a download
+      toast(t('toast.saveFailedDownload', { error: e.message }), { type: 'warn', timeout: 9000 });
     }
   }
   download(store.file.name || 'map.json', text, 'application/json');

@@ -57,6 +57,14 @@ as usual; exit code 0 unless something failed):
 
 ## Working together with a human
 
+Best setup when the human edits in a browser next to you (e.g. the Claude
+app's built-in browser): run `node tools/serve.mjs <project folder>` from the
+IluMap repo (or start the `ilumap` entry of `.claude/launch.json`) and open
+`http://localhost:8765/?file=<path/to/map.json>`. The human's Save writes the
+file directly, and your edits to the file appear in their editor within a few
+seconds — as one undoable step, or as a question when they have unsaved
+edits. No file dialogs, no downloads.
+
 1. **Agent** adds POIs (lore places, quest spots) with rough `x`, `y` and
    `"placed": false`, references them from lore by id, runs `fmt` and
    `validate`, commits or hands the file over.
