@@ -3,7 +3,8 @@
 import { store, emit } from '../state.js';
 import { toView, esc } from '../../core/render-svg.js';
 import { distance, bearing, compass8, polylineLength } from '../../core/geometry.js';
-import { formatLength } from '../../core/text-export.js';
+import { t } from '../i18n/index.js';
+import { fmtLength, compassLabel } from '../i18n/format.js';
 
 let pts = [];
 let hover = null;
@@ -15,10 +16,10 @@ function all() {
 
 export default {
   id: 'measure',
-  label: 'Measure',
+  get label() { return t('tools.measure'); },
   key: 'M',
   icon: 'measure',
-  hint: () => 'Click points to measure · double-click or Enter ends · Esc clears · Shift toggles snapping',
+  hint: () => t('tools.measureHint'),
   deactivate() { pts = []; hover = null; done = false; },
   down(ctx) {
     const p = ctx.snap ? ctx.canvas.snap(ctx.world) : ctx.world;
@@ -40,11 +41,11 @@ export default {
   },
   status() {
     const a = all();
-    if (a.length < 2) return pts.length ? 'Click the next point' : '';
+    if (a.length < 2) return pts.length ? t('tools.measureNext') : '';
     const meta = store.doc.meta;
     const last = distance(a[a.length - 2], a[a.length - 1]);
-    const dir = compass8(bearing(a[a.length - 2], a[a.length - 1], !!meta.flipY));
-    return `Segment ${formatLength(last, meta)} ${dir} · Total ${formatLength(polylineLength(a), meta)}`;
+    const dir = compassLabel(compass8(bearing(a[a.length - 2], a[a.length - 1], !!meta.flipY)));
+    return t('tools.measureStatus', { segment: fmtLength(last, meta), dir, total: fmtLength(polylineLength(a), meta) });
   },
   overlay(canvas) {
     const a = all();
@@ -58,11 +59,11 @@ export default {
     for (let i = 0; i < V.length - 1; i++) {
       const mx = (V[i][0] + V[i + 1][0]) / 2;
       const my = (V[i][1] + V[i + 1][1]) / 2 - 8 * upp;
-      s += label(mx, my, formatLength(distance(a[i], a[i + 1]), meta), false);
+      s += label(mx, my, fmtLength(distance(a[i], a[i + 1]), meta), false);
     }
     if (a.length > 2 || done) {
       const [x, y] = V[V.length - 1];
-      s += label(x, y + 20 * upp, `Σ ${formatLength(polylineLength(a), meta)}`, true);
+      s += label(x, y + 20 * upp, `Σ ${fmtLength(polylineLength(a), meta)}`, true);
     }
     return s;
   },

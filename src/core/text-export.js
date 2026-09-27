@@ -6,34 +6,53 @@ import {
 } from './geometry.js';
 import { zoneOf, isLand, waterAt, findById } from './model.js';
 
-/** Length in world units -> "1.2 km" / "350 m" / "12 cm" using meta.displayUnit(Scale). */
-export function formatLength(worldLen, meta = {}) {
+/**
+ * Length in world units -> "1.2 km" / "350 m" / "12 cm" using meta.displayUnit(Scale).
+ * opts (optional, used by the localised UI; the CLI and text export keep the
+ * English default): { locale: 'ru', units: { km: 'км', m: 'м', … } }.
+ */
+export function formatLength(worldLen, meta = {}, opts = {}) {
   const scale = meta.displayUnitScale > 0 ? meta.displayUnitScale : 100;
   const unit = meta.displayUnit || 'm';
   const d = worldLen / scale;
+  const n = numberFormatter(opts);
+  const u = unitName(opts);
   if (unit === 'm') {
-    if (Math.abs(d) >= 1000) return `${trim(d / 1000, 1)} km`;
-    if (Math.abs(d) >= 100) return `${Math.round(d)} m`;
-    return `${trim(d, 1)} m`;
+    if (Math.abs(d) >= 1000) return `${n(d / 1000, 1)} ${u('km')}`;
+    if (Math.abs(d) >= 100) return `${n(Math.round(d), 0)} ${u('m')}`;
+    return `${n(d, 1)} ${u('m')}`;
   }
-  if (Math.abs(d) >= 100) return `${Math.round(d)} ${unit}`;
-  return `${trim(d, 2)} ${unit}`;
+  if (Math.abs(d) >= 100) return `${n(Math.round(d), 0)} ${u(unit)}`;
+  return `${n(d, 2)} ${u(unit)}`;
 }
 
-/** Area in world units² -> "12.5 km²" / "800 m²". */
-export function formatArea(worldArea, meta = {}) {
+/** Area in world units² -> "12.5 km²" / "800 m²". Same optional opts as formatLength. */
+export function formatArea(worldArea, meta = {}, opts = {}) {
   const scale = meta.displayUnitScale > 0 ? meta.displayUnitScale : 100;
   const unit = meta.displayUnit || 'm';
   const a = worldArea / (scale * scale);
+  const n = numberFormatter(opts);
+  const u = unitName(opts);
   if (unit === 'm') {
-    if (a >= 1e5) return `${trim(a / 1e6, a >= 1e7 ? 1 : 2)} km²`;
-    return `${Math.round(a)} m²`;
+    if (a >= 1e5) return `${n(a / 1e6, a >= 1e7 ? 1 : 2)} ${u('km')}²`;
+    return `${n(Math.round(a), 0)} ${u('m')}²`;
   }
-  return `${trim(a, 1)} ${unit}²`;
+  return `${n(a, 1)} ${u(unit)}²`;
 }
 
 function trim(v, digits) {
   return String(Number(v.toFixed(digits)));
+}
+
+/** Default: "1234.5" (no grouping, dot); with opts.locale: Intl formatting ("1234,5"). */
+function numberFormatter(opts) {
+  if (!opts?.locale) return trim;
+  return (v, digits) => new Intl.NumberFormat(opts.locale, { maximumFractionDigits: digits }).format(Number(v.toFixed(digits)));
+}
+
+function unitName(opts) {
+  const units = opts?.units || {};
+  return (name) => units[name] ?? name;
 }
 
 function fmtCoord(v) {

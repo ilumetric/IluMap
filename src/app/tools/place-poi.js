@@ -1,13 +1,14 @@
 // POI tool: click on the map to add a POI (type = last used POI type).
 import { store, change, select, emit } from '../state.js';
 import { nextId, zoneOf } from '../../core/model.js';
+import { t, label } from '../i18n/index.js';
 
 export default {
   id: 'poi',
-  label: 'POI',
+  get label() { return t('tools.poi'); },
   key: 'O',
   icon: 'poi',
-  hint: () => `Click to place a new “${store.prefs.poiType || 'poi'}” POI · Shift toggles grid snapping · drag POIs from the list onto the map`,
+  hint: () => t('tools.poiHint', { type: label('poiTypes', store.prefs.poiType || 'poi') }),
   down(ctx) {
     const [x, y] = ctx.snap ? ctx.canvas.snap(ctx.world) : ctx.world.map(Math.round);
     const id = nextId(store.doc, 'poi');

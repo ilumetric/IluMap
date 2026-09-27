@@ -8,6 +8,7 @@ import { findById, insertVertex, removeVertex, zoneOf, features } from '../../co
 import { nearestPointOnPolyline } from '../../core/geometry.js';
 import { toView } from '../../core/render-svg.js';
 import { toast } from '../dom.js';
+import { t } from '../i18n/index.js';
 
 let drag = null;
 
@@ -38,10 +39,10 @@ function updateZones(items) {
 
 export default {
   id: 'select',
-  label: 'Select / move',
+  get label() { return t('tools.select'); },
   key: 'V',
   icon: 'select',
-  hint: () => 'Click to select · Shift+click add · drag a selected item to move it · Alt+click segment adds a vertex · double-click vertex deletes',
+  hint: () => t('tools.selectHint'),
 
   down(ctx) {
     const { hit } = ctx;
@@ -51,7 +52,7 @@ export default {
       if (!fhit || fhit.kind !== 'feature') return;
       if (ctx.clicks >= 2) {
         change(() => {
-          if (!removeVertex(fhit.item, hit.index)) toast(`A ${fhit.item.kind} needs at least ${fhit.item.kind === 'polygon' ? 3 : 2} points`, { type: 'warn' });
+          if (!removeVertex(fhit.item, hit.index)) toast(t(fhit.item.kind === 'polygon' ? 'toast.polygonMinPoints' : 'toast.lineMinPoints'), { type: 'warn' });
         });
         drag = null;
         return;

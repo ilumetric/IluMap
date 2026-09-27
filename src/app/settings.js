@@ -1,6 +1,6 @@
-// UI theme (System / Dark / Light, independent of the map's style preset) and
-// the Settings dialog. The theme is stored under its own localStorage key so
-// the inline script in index.html can apply it before first paint.
+// UI theme, UI language and the Settings dialog. Theme and language are
+// stored under their own localStorage keys so the inline script in
+// index.html can apply them before first paint.
 
 import { store, savePrefs, emit } from './state.js';
 import { PRESETS } from '../core/styles.js';
@@ -9,15 +9,16 @@ import { icon } from './ui/icons.js';
 import { persistent } from './projects.js';
 import { clearAllProjects } from './session.js';
 import { APP_VERSION, DOCS_URL } from './version.js';
+import { t, label, getLang, setLang, LANGUAGES } from './i18n/index.js';
 
 const THEME_KEY = 'ilumap.uiTheme';
-const THEMES = [['system', 'System'], ['dark', 'Dark'], ['light', 'Light']];
+const THEMES = ['system', 'dark', 'light'];
 const media = typeof matchMedia === 'function' ? matchMedia('(prefers-color-scheme: light)') : null;
 
 export function getThemePref() {
   try {
     const v = localStorage.getItem(THEME_KEY);
-    return THEMES.some(([k]) => k === v) ? v : 'system';
+    return THEMES.includes(v) ? v : 'system';
   } catch { return 'system'; }
 }
 
@@ -36,36 +37,63 @@ function setThemePref(pref) {
 
 media?.addEventListener?.('change', () => { if (getThemePref() === 'system') applyTheme('system'); });
 
-export async function openSettings() {
+/**
+ * Settings dialog. The language select applies at once: the dialog is
+ * reopened in the new language, keeping the values not yet confirmed.
+ */
+export async function openSettings(draft = null) {
+  const v = {
+    theme: getThemePref(),
+    preset: store.prefs.newMapPreset || 'graphite',
+    coordUnits: store.prefs.coordUnits || 'world',
+    autosave: store.prefs.autosave !== false,
+    ...(draft || {}),
+  };
   const clearBtn = h('button', {
     type: 'button', class: 'btn btn-small btn-danger',
     onclick: async () => {
       document.querySelector('#dialogs .backdrop:last-child .dialog-head .icon-btn')?.click(); // close Settings first
       await clearAllProjects();
     },
-  }, icon('trash'), 'Clear local maps…');
+  }, icon('trash'), t('settings.clearMaps'));
   const footer = h('div', { class: 'settings-extra' },
     h('section', { class: 'danger-zone' },
-      h('div', {}, h('strong', {}, 'Local maps'),
-        h('p', { class: 'muted small' }, persistent
-          ? 'Maps in the sidebar are working copies stored in this browser (IndexedDB). The map.json in your repo stays the source of truth — save to it and commit.'
-          : 'Browser storage is unavailable, so maps live in memory for this session only.')),
+      h('div', {}, h('strong', {}, t('settings.localMaps')),
+        h('p', { class: 'muted small' }, persistent ? t('settings.localMapsHint') : t('settings.memoryOnlyHint'))),
       clearBtn),
     h('p', { class: 'about muted small' },
-      `IluMap ${APP_VERSION} · `, h('a', { href: DOCS_URL, target: '_blank', rel: 'noopener' }, 'Documentation', icon('externalLink')),
-      ' · MIT licence'));
+      `IluMap ${APP_VERSION} · `, h('a', { href: DOCS_URL, target: '_blank', rel: 'noopener' }, t('settings.docs'), icon('externalLink')),
+      ` · ${t('settings.licence')}`));
 
+  let relaunch = null;
   const res = await openDialog({
-    title: 'Settings',
+    title: t('settings.title'),
     fields: [
-      { name: 'theme', label: 'Interface theme', type: 'select', value: getThemePref(), options: THEMES },
-      { name: 'preset', label: 'Map style for new maps', type: 'select', value: store.prefs.newMapPreset || 'graphite', options: Object.keys(PRESETS) },
-      { name: 'coordUnits', label: 'Cursor coordinates', type: 'select', value: store.prefs.coordUnits || 'world', options: [['world', 'World units (e.g. cm)'], ['display', 'Display units (e.g. m)']] },
-      { name: 'autosave', label: 'Autosave the working copy in this browser', type: 'checkbox', value: store.prefs.autosave !== false },
+      { name: 'lang', label: t('settings.languageBoth'), type: 'select', value: getLang(), options: LANGUAGES.map((l) => [l.code, l.name]) },
+      { name: 'theme', label: t('settings.theme'), type: 'select', value: v.theme, options: THEMES.map((k) => [k, t(`settings.themes.${k}`)]) },
+      { name: 'preset', label: t('settings.preset'), type: 'select', value: v.preset, options: Object.keys(PRESETS).map((p) => [p, label('presets', p)]) },
+      { name: 'coordUnits', label: t('settings.coordUnits'), type: 'select', value: v.coordUnits, options: [['world', t('settings.coordWorld')], ['display', t('settings.coordDisplay')]] },
+      { name: 'autosave', label: t('settings.autosave'), type: 'checkbox', value: v.autosave },
     ],
     footer,
-    okText: 'Done',
+    okText: t('settings.done'),
+    onOpen: ({ inputs, close }) => {
+      const sel = inputs.lang;
+      for (const o of sel.options) o.lang = o.value;
+      sel.addEventListener('change', () => {
+        relaunch = {
+          theme: inputs.theme.value, preset: inputs.preset.value, coordUnits: inputs.coordUnits.value, autosave: inputs.autosave.checked,
+        };
+        const lang = sel.value;
+        close(null);
+        setLang(lang);
+      });
+    },
   });
+  if (relaunch) {
+    await openSettings(relaunch); // the language select is the first field, so it keeps the focus
+    return;
+  }
   if (!res) return;
   setThemePref(res.theme);
   store.prefs.newMapPreset = res.preset;

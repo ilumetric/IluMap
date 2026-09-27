@@ -5,6 +5,8 @@ import { resolveStyle, PRESETS, POI_ICONS } from '../../core/styles.js';
 import { DRAW_ORDER } from '../../core/schema.js';
 import { h, clear, renderKeepingFocus, openDialog, toast } from '../dom.js';
 import { slugify } from '../../core/model.js';
+import { t, label, onLangChange } from '../i18n/index.js';
+import { layerLabel } from '../ui/layer-meta.js';
 
 function setOverride(group, name, key, value) {
   change((doc) => {
@@ -29,7 +31,7 @@ export function mountStyle(root) {
       const doc = store.doc;
       const rs = resolveStyle(doc.style);
 
-      const preset = h('select', { name: 'preset' }, Object.keys(PRESETS).map((p) => h('option', { value: p, selected: p === rs.preset }, p)));
+      const preset = h('select', { name: 'preset' }, Object.keys(PRESETS).map((p) => h('option', { value: p, selected: p === rs.preset }, label('presets', p))));
       preset.addEventListener('change', () => {
         const v = preset.value;
         change((d) => {
@@ -45,64 +47,64 @@ export function mountStyle(root) {
       });
 
       body.append(h('section', { class: 'insp-section' },
-        h('h4', {}, 'Map style'),
-        h('p', { class: 'muted small' }, 'Colours of the map itself (saved in map.json). The editor theme is in Settings.'),
+        h('h4', {}, t('style.mapStyle')),
+        h('p', { class: 'muted small' }, t('style.hint')),
         h('div', { class: 'row2' },
-          h('label', { class: 'field' }, h('span', {}, 'Base palette'), preset),
-          h('label', { class: 'field' }, h('span', {}, 'Ocean (inside the bounds)'), colorCell('ocean', rs.ocean, (v) => change((d) => { d.style.ocean = v; })))),
+          h('label', { class: 'field' }, h('span', {}, t('style.palette')), preset),
+          h('label', { class: 'field' }, h('span', {}, t('style.ocean')), colorCell('ocean', rs.ocean, (v) => change((d) => { d.style.ocean = v; })))),
         h('div', { class: 'row2' },
-          h('label', { class: 'field' }, h('span', {}, 'Labels'), colorCell('label', rs.label, (v) => change((d) => { d.style.label = v; }))),
-          h('label', { class: 'field' }, h('span', {}, 'Grid'), colorCell('grid', rs.grid, (v) => change((d) => { d.style.grid = v; })))),
+          h('label', { class: 'field' }, h('span', {}, t('style.labels')), colorCell('label', rs.label, (v) => change((d) => { d.style.label = v; }))),
+          h('label', { class: 'field' }, h('span', {}, t('style.grid')), colorCell('grid', rs.grid, (v) => change((d) => { d.style.grid = v; })))),
         h('button', {
-          class: 'btn btn-small', title: 'Remove all style overrides (keeps the preset)',
+          class: 'btn btn-small', title: t('style.resetTitle'),
           onclick: () => change((d) => { d.style = { preset: d.style.preset }; }),
-        }, 'Reset overrides')));
+        }, t('style.reset'))));
 
       // layers
-      const lt = h('table', { class: 'style-table' }, h('tr', {}, h('th', {}, 'Layer'), h('th', {}, 'Fill'), h('th', {}, 'Stroke'), h('th', {}, 'Width px')));
+      const lt = h('table', { class: 'style-table' }, h('tr', {}, h('th', {}, t('style.layer')), h('th', {}, t('style.fill')), h('th', {}, t('style.stroke')), h('th', {}, t('style.widthPx'))));
       for (const l of DRAW_ORDER) {
         const e = rs.layers[l] || {};
         const hasFill = l === 'land' || l === 'water';
         const w = h('input', { type: 'number', name: `lw-${l}`, value: e.width ?? '', min: 0, step: 0.5, class: 'narrow' });
         w.addEventListener('change', () => { if (w.value !== '') setOverride('layers', l, 'width', Number(w.value)); });
         lt.append(h('tr', {},
-          h('td', {}, l),
+          h('td', { title: l }, layerLabel(l)),
           h('td', {}, hasFill ? colorCell(`lf-${l}`, e.fill, (v) => setOverride('layers', l, 'fill', v)) : h('span', { class: 'muted' }, '—')),
-          h('td', {}, l === 'zones' ? h('span', { class: 'muted' }, 'per type') : colorCell(`ls-${l}`, e.stroke, (v) => setOverride('layers', l, 'stroke', v))),
+          h('td', {}, l === 'zones' ? h('span', { class: 'muted' }, t('style.perType')) : colorCell(`ls-${l}`, e.stroke, (v) => setOverride('layers', l, 'stroke', v))),
           h('td', {}, l === 'zones' ? '' : w)));
       }
-      body.append(h('section', { class: 'insp-section' }, h('h4', {}, 'Layers'), lt));
+      body.append(h('section', { class: 'insp-section' }, h('h4', {}, t('style.layers')), lt));
 
       // zone types
-      const zt = h('table', { class: 'style-table' }, h('tr', {}, h('th', {}, 'Zone type'), h('th', {}, 'Fill'), h('th', {}, 'Pattern')));
+      const zt = h('table', { class: 'style-table' }, h('tr', {}, h('th', {}, t('style.zoneType')), h('th', {}, t('style.fill')), h('th', {}, t('style.pattern'))));
       for (const [name, e] of Object.entries(rs.zoneTypes)) {
-        const pat = h('select', { name: `zp-${name}` }, ['', 'hatch', 'dots'].map((p) => h('option', { value: p, selected: (e.pattern || '') === p }, p || 'none')));
+        const pat = h('select', { name: `zp-${name}` }, ['', 'hatch', 'dots'].map((p) => h('option', { value: p, selected: (e.pattern || '') === p }, label('patterns', p || 'none'))));
         pat.addEventListener('change', () => setOverride('zoneTypes', name, 'pattern', pat.value || null));
-        zt.append(h('tr', {}, h('td', {}, name), h('td', {}, colorCell(`zf-${name}`, e.fill, (v) => setOverride('zoneTypes', name, 'fill', v))), h('td', {}, pat)));
+        zt.append(h('tr', {}, h('td', { title: name }, label('zoneTypes', name)), h('td', {}, colorCell(`zf-${name}`, e.fill, (v) => setOverride('zoneTypes', name, 'fill', v))), h('td', {}, pat)));
       }
-      body.append(h('section', { class: 'insp-section' }, h('h4', {}, 'Zone types'), zt, addTypeButton('zoneTypes', { fill: '#7f9f7f' })));
+      body.append(h('section', { class: 'insp-section' }, h('h4', {}, t('style.zoneTypes')), zt, addTypeButton('zoneTypes', { fill: '#7f9f7f' })));
 
       // poi types
-      const pt = h('table', { class: 'style-table' }, h('tr', {}, h('th', {}, 'POI type'), h('th', {}, 'Colour'), h('th', {}, 'Icon')));
+      const pt = h('table', { class: 'style-table' }, h('tr', {}, h('th', {}, t('style.poiType')), h('th', {}, t('style.colour')), h('th', {}, t('style.icon'))));
       for (const [name, e] of Object.entries(rs.poiTypes)) {
-        const ic = h('select', { name: `pi-${name}` }, POI_ICONS.map((p) => h('option', { value: p, selected: e.icon === p }, p)));
+        const ic = h('select', { name: `pi-${name}` }, POI_ICONS.map((p) => h('option', { value: p, selected: e.icon === p }, label('poiIcons', p))));
         ic.addEventListener('change', () => setOverride('poiTypes', name, 'icon', ic.value));
-        pt.append(h('tr', {}, h('td', {}, name), h('td', {}, colorCell(`pc-${name}`, e.color, (v) => setOverride('poiTypes', name, 'color', v))), h('td', {}, ic)));
+        pt.append(h('tr', {}, h('td', { title: name }, label('poiTypes', name)), h('td', {}, colorCell(`pc-${name}`, e.color, (v) => setOverride('poiTypes', name, 'color', v))), h('td', {}, ic)));
       }
-      body.append(h('section', { class: 'insp-section' }, h('h4', {}, 'POI types'), pt, addTypeButton('poiTypes', { color: '#8ecae6', icon: 'dot' })));
+      body.append(h('section', { class: 'insp-section' }, h('h4', {}, t('style.poiTypes')), pt, addTypeButton('poiTypes', { color: '#8ecae6', icon: 'dot' })));
 
       // wall + line types
-      const wt = h('table', { class: 'style-table' }, h('tr', {}, h('th', {}, 'Wall / line type'), h('th', {}, 'Stroke'), h('th', {}, 'Dash')));
+      const wt = h('table', { class: 'style-table' }, h('tr', {}, h('th', {}, t('style.wallLineType')), h('th', {}, t('style.stroke')), h('th', {}, t('style.dash'))));
       for (const [name, e] of Object.entries(rs.wallTypes)) {
-        wt.append(h('tr', {}, h('td', {}, name), h('td', {}, colorCell(`ws-${name}`, e.stroke, (v) => setOverride('wallTypes', name, 'stroke', v))), h('td', { class: 'muted' }, e.pattern || '')));
+        wt.append(h('tr', {}, h('td', { title: name }, label('wallTypes', name)), h('td', {}, colorCell(`ws-${name}`, e.stroke, (v) => setOverride('wallTypes', name, 'stroke', v))), h('td', { class: 'muted' }, e.pattern ? label('patterns', e.pattern) : '')));
       }
       for (const [name, e] of Object.entries(rs.lineTypes)) {
         const layerStroke = name.startsWith('river') ? rs.layers.rivers.stroke : name.startsWith('rail') ? rs.layers.rails.stroke : rs.layers.roads.stroke;
-        const dash = h('input', { type: 'text', name: `ld-${name}`, value: e.dash ?? '', placeholder: 'solid', class: 'narrow' });
+        const dash = h('input', { type: 'text', name: `ld-${name}`, value: e.dash ?? '', placeholder: t('style.solid'), class: 'narrow' });
         dash.addEventListener('change', () => setOverride('lineTypes', name, 'dash', dash.value.trim() || null));
-        wt.append(h('tr', {}, h('td', {}, name), h('td', {}, colorCell(`lc-${name}`, e.stroke || layerStroke, (v) => setOverride('lineTypes', name, 'stroke', v))), h('td', {}, dash)));
+        wt.append(h('tr', {}, h('td', { title: name }, label('lineTypes', name)), h('td', {}, colorCell(`lc-${name}`, e.stroke || layerStroke, (v) => setOverride('lineTypes', name, 'stroke', v))), h('td', {}, dash)));
       }
-      body.append(h('section', { class: 'insp-section' }, h('h4', {}, 'Wall and line types'), wt, addTypeButton('lineTypes', { width: 2 })));
+      body.append(h('section', { class: 'insp-section' }, h('h4', {}, t('style.wallLineTypes')), wt, addTypeButton('lineTypes', { width: 2 })));
     });
   }
 
@@ -110,13 +112,18 @@ export function mountStyle(root) {
     return h('button', {
       class: 'btn btn-small',
       onclick: async () => {
-        const res = await openDialog({ title: `New ${group.replace('Types', '')} type`, fields: [{ name: 'name', label: 'Type name', value: '' }], okText: 'Add' });
+        const res = await openDialog({
+          title: t(`dialogs.newType.${group}`),
+          message: t('dialogs.newType.message'),
+          fields: [{ name: 'name', label: t('dialogs.newType.name'), value: '' }],
+          okText: t('dialogs.newType.add'),
+        });
         if (!res || !res.name.trim()) return;
         const name = slugify(res.name, Object.keys(resolveStyle(store.doc.style)[group]));
         change((d) => { d.style[group] ||= {}; d.style[group][name] = { ...defaults }; });
-        toast(`Added ${group} “${name}”`, { type: 'ok' });
+        toast(t('toast.typeAdded', { name }), { type: 'ok' });
       },
-    }, '+ Type');
+    }, t('style.addType'));
   }
 
   let pending = false;
@@ -126,5 +133,6 @@ export function mountStyle(root) {
     requestAnimationFrame(() => { pending = false; render(); });
   };
   on('doc', (d) => { if (!d?.live) schedule(); });
+  onLangChange(schedule);
   render();
 }

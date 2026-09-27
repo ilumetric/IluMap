@@ -9,9 +9,11 @@ import { renderMask, maskFileName, maskSidecar, stringifySidecar, maskSources, z
 import { encodePngAsync } from '../core/png.js';
 import { fitPairs } from '../core/calibration.js';
 import { download, toast, openDialog, h } from './dom.js';
+import { t, label, plural } from './i18n/index.js';
+import { layerLabel } from './ui/layer-meta.js';
 
-const JSON_TYPES = [{ description: 'IluMap map', accept: { 'application/json': ['.json'] } }];
-export const JSON_PICKER_TYPES = JSON_TYPES;
+const jsonTypes = () => [{ description: t('export.pickerDescription'), accept: { 'application/json': ['.json'] } }];
+export const jsonPickerTypes = jsonTypes;
 
 function baseName(name) {
   return (name || 'map.json').replace(/\.json$/i, '');
@@ -21,18 +23,19 @@ function baseName(name) {
 export function parseMapText(text, source = 'file') {
   let json;
   try { json = JSON.parse(text); } catch (e) {
-    toast(`${source} is not valid JSON: ${e.message}`, { type: 'error', timeout: 8000 });
+    toast(t('toast.invalidJson', { source, error: e.message }), { type: 'error', timeout: 8000 });
     return null;
   }
   let doc;
   try { doc = normalize(json); } catch (e) {
-    toast(`Cannot read ${source}: ${e.message}`, { type: 'error', timeout: 8000 });
+    toast(t('toast.cannotRead', { source, error: e.message }), { type: 'error', timeout: 8000 });
     return null;
   }
   const v = validate(doc);
   if (!v.ok) {
+    // the validator's own messages are technical (JSON paths) and stay English, like the CLI
     const first = v.errors.slice(0, 3).map((e) => `${e.path}: ${e.message}`).join('; ');
-    toast(`${source} has ${v.errors.length} validation error(s) — ${first}`, { type: 'warn', timeout: 10000 });
+    toast(t('toast.validationErrors', { source, errors: plural('count.errors', v.errors.length), first }), { type: 'warn', timeout: 10000 });
   }
   return doc;
 }
@@ -50,17 +53,17 @@ export async function save() {
       const text = serialize(store.doc);
       if (store.file.handle.requestPermission) {
         const p = await store.file.handle.requestPermission({ mode: 'readwrite' });
-        if (p !== 'granted') throw new Error('write permission denied');
+        if (p !== 'granted') throw new Error(t('toast.permissionDenied'));
       }
       const w = await store.file.handle.createWritable();
       await w.write(text);
       await w.close();
       markSaved(text);
       emit('file');
-      toast(`Saved ${store.file.name}`, { type: 'ok', timeout: 1800 });
+      toast(t('toast.saved', { file: store.file.name }), { type: 'ok', timeout: 1800 });
       return true;
     } catch (e) {
-      toast(`Save failed: ${e.message}. Use “Save as…”.`, { type: 'error' });
+      toast(t('toast.saveFailed', { error: e.message }), { type: 'error' });
       return false;
     }
   }
@@ -70,27 +73,27 @@ export async function save() {
 export async function saveAs() {
   const text = serialize(store.doc);
   const v = validate(store.doc);
-  if (!v.ok) toast(`Saving with ${v.errors.length} validation error(s): ${v.errors[0].path}: ${v.errors[0].message}`, { type: 'warn', timeout: 7000 });
+  if (!v.ok) toast(t('toast.savingWithErrors', { errors: plural('count.errors', v.errors.length), first: `${v.errors[0].path}: ${v.errors[0].message}` }), { type: 'warn', timeout: 7000 });
   if ('showSaveFilePicker' in window) {
     try {
-      const handle = await window.showSaveFilePicker({ suggestedName: store.file.name || 'map.json', types: JSON_TYPES });
+      const handle = await window.showSaveFilePicker({ suggestedName: store.file.name || 'map.json', types: jsonTypes() });
       const w = await handle.createWritable();
       await w.write(text);
       await w.close();
       store.file = { ...store.file, handle, name: handle.name, baseUrl: null };
       markSaved(text);
       emit('file');
-      toast(`Saved ${handle.name}`, { type: 'ok', timeout: 1800 });
+      toast(t('toast.saved', { file: handle.name }), { type: 'ok', timeout: 1800 });
       return true;
     } catch (e) {
       if (e.name === 'AbortError') return false;
-      toast(`Save failed (${e.message}); downloading instead.`, { type: 'warn' });
+      toast(t('toast.saveFailedDownload', { error: e.message }), { type: 'warn' });
     }
   }
   download(store.file.name || 'map.json', text, 'application/json');
   markSaved(text);
   emit('file');
-  toast('Downloaded map.json — replace the file in your repo with it.', { timeout: 5000 });
+  toast(t('toast.downloaded', { file: store.file.name || 'map.json' }), { timeout: 5000 });
   return true;
 }
 
@@ -110,12 +113,12 @@ export function exportSvg() {
 
 export async function exportPng() {
   const res = await openDialog({
-    title: 'Export PNG',
+    title: t('dialogs.png.title'),
     fields: [
-      { name: 'width', label: 'Width (px)', type: 'number', value: 4096, min: 64, max: 16384, step: 1 },
-      { name: 'grid', label: 'Include grid', type: 'checkbox', value: false },
+      { name: 'width', label: t('dialogs.png.width'), type: 'number', value: 4096, min: 64, max: 16384, step: 1 },
+      { name: 'grid', label: t('dialogs.png.grid'), type: 'checkbox', value: false },
     ],
-    okText: 'Export',
+    okText: t('dialogs.png.ok'),
   });
   if (!res) return;
   const width = Math.max(64, Math.min(16384, Math.round(res.width || 4096)));
@@ -125,16 +128,16 @@ export async function exportPng() {
   try {
     const img = new Image();
     img.decoding = 'async';
-    await new Promise((ok, fail) => { img.onload = ok; img.onerror = () => fail(new Error('SVG could not be rasterised')); img.src = url; });
+    await new Promise((ok, fail) => { img.onload = ok; img.onerror = () => fail(new Error(t('toast.svgRaster'))); img.src = url; });
     const canvas = document.createElement('canvas');
     canvas.width = img.naturalWidth || width;
     canvas.height = img.naturalHeight || Math.round(width);
     canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
     const png = await new Promise((ok) => canvas.toBlob(ok, 'image/png'));
-    if (!png) throw new Error('canvas too large for this browser');
+    if (!png) throw new Error(t('toast.canvasTooLarge'));
     download(`${baseName(store.file.name)}.png`, png);
   } catch (e) {
-    toast(`PNG export failed: ${e.message}`, { type: 'error' });
+    toast(t('toast.pngFailed', { error: e.message }), { type: 'error' });
   } finally {
     URL.revokeObjectURL(url);
   }
@@ -163,17 +166,17 @@ export async function exportMasks() {
   const doc = store.doc;
   const sources = maskSources(doc);
   const res = await openDialog({
-    title: 'Export masks',
-    message: 'Greyscale PNG masks covering view.bounds (white = selected). A masks.json sidecar records bounds and units per pixel.',
+    title: t('dialogs.masks.title'),
+    message: t('dialogs.masks.message'),
     fields: [
-      { name: 'source', label: 'Source', type: 'select', value: store.prefs.maskSource || 'land', options: [...sources, ['feature', 'feature:<id> (selected feature)']] },
-      { name: 'size', label: 'Size (longest side, px)', type: 'number', value: store.prefs.maskSize || 2048, min: 16, max: 16384, step: 1 },
-      { name: 'feather', label: 'Feather (px, box blur)', type: 'number', value: 0, min: 0, max: 256, step: 1 },
-      { name: 'stroke', label: 'Line width override (world units, optional)', type: 'number', value: '', min: 0, step: 'any' },
-      { name: 'invert', label: 'Invert', type: 'checkbox', value: false },
-      { name: 'split', label: 'Split zones: one file per zone type (source “zones”)', type: 'checkbox', value: false },
+      { name: 'source', label: t('dialogs.masks.source'), type: 'select', value: store.prefs.maskSource || 'land', options: [...sources.map((s) => [s, maskSourceLabel(s)]), ['feature', t('dialogs.masks.sourceFeature')]] },
+      { name: 'size', label: t('dialogs.masks.size'), type: 'number', value: store.prefs.maskSize || 2048, min: 16, max: 16384, step: 1 },
+      { name: 'feather', label: t('dialogs.masks.feather'), type: 'number', value: 0, min: 0, max: 256, step: 1 },
+      { name: 'stroke', label: t('dialogs.masks.stroke'), type: 'number', value: '', min: 0, step: 'any' },
+      { name: 'invert', label: t('dialogs.masks.invert'), type: 'checkbox', value: false },
+      { name: 'split', label: t('dialogs.masks.split'), type: 'checkbox', value: false },
     ],
-    okText: 'Export',
+    okText: t('dialogs.masks.ok'),
   });
   if (!res) return;
   store.prefs.maskSource = res.source;
@@ -181,14 +184,14 @@ export async function exportMasks() {
   let list = [res.source];
   if (res.source === 'feature') {
     const sel = [...store.selection].filter((id) => findById(doc, id)?.kind === 'feature');
-    if (!sel.length) { toast('Select a feature first.', { type: 'warn' }); return; }
+    if (!sel.length) { toast(t('toast.selectFeatureFirst'), { type: 'warn' }); return; }
     list = sel.map((id) => `feature:${id}`);
   }
   if (res.split && res.source === 'zones') list = zoneTypes(doc).map((t) => `zones:${t}`);
   const files = [];
   const entries = [];
   let last = null;
-  const close = toast('Rendering masks…', { timeout: 0 });
+  const close = toast(t('toast.renderingMasks'), { timeout: 0 });
   try {
     for (const source of list) {
       const m = renderMask(doc, { source, size: res.size, invert: res.invert, feather: res.feather || 0, stroke: res.stroke || undefined });
@@ -201,7 +204,7 @@ export async function exportMasks() {
     }
   } catch (e) {
     close();
-    toast(`Mask export failed: ${e.message}`, { type: 'error' });
+    toast(t('toast.maskFailed', { error: e.message }), { type: 'error' });
     return;
   }
   close();
@@ -215,24 +218,30 @@ export async function exportMasks() {
         await w.write(f.blob);
         await w.close();
       }
-      toast(`Wrote ${files.length} files to ${dir.name}/`, { type: 'ok' });
+      toast(t('toast.wroteFiles', { files: plural('count.files', files.length), dir: dir.name }), { type: 'ok' });
       return;
     } catch (e) {
       if (e.name === 'AbortError') return;
     }
   }
   for (const f of files) download(f.name, f.blob);
-  toast(`Exported ${files.length - 1} mask(s) + masks.json`, { type: 'ok' });
+  toast(t('toast.exportedMasks', { masks: plural('count.masks', files.length - 1) }), { type: 'ok' });
 }
 
 export async function copyText(format = 'markdown') {
   const text = toText(store.doc, { format });
   try {
     await navigator.clipboard.writeText(text);
-    toast(`Copied map as ${format === 'plain' ? 'plain text' : 'markdown'} (${text.split('\n').length} lines)`, { type: 'ok' });
+    toast(t(format === 'plain' ? 'toast.copiedPlain' : 'toast.copiedMarkdown', { lines: plural('count.lines', text.split('\n').length) }), { type: 'ok' });
   } catch {
     download(`${baseName(store.file.name)}.md`, text, 'text/markdown');
   }
+}
+
+/** Display label of a mask source (land, zones:mountains, …); the source string itself is data. */
+function maskSourceLabel(source) {
+  if (source.startsWith('zones:')) return t('dialogs.masks.zonesOf', { type: label('zoneTypes', source.slice(6)) });
+  return `${layerLabel(source)} (${source})`;
 }
 
 // --- background image -----------------------------------------------------------
@@ -241,7 +250,7 @@ function imageSize(url) {
   return new Promise((ok, fail) => {
     const img = new Image();
     img.onload = () => ok({ width: img.naturalWidth, height: img.naturalHeight });
-    img.onerror = () => fail(new Error('image failed to load'));
+    img.onerror = () => fail(new Error(t('toast.imageFailed')));
     img.src = url;
   });
 }
@@ -261,7 +270,7 @@ export async function resolveBackground({ blob = null, quiet = false } = {}) {
   if (!url) {
     store.background = { url: null, missing: true, name: bg.src };
     emit('background');
-    if (!quiet) toast(`Background “${bg.src}” is not loaded — drop the image onto the canvas to attach it.`, { timeout: 7000 });
+    if (!quiet) toast(t('toast.backgroundNotLoaded', { src: bg.src }), { timeout: 7000 });
     return;
   }
   try {
@@ -272,7 +281,7 @@ export async function resolveBackground({ blob = null, quiet = false } = {}) {
     }
   } catch {
     store.background = { url: null, missing: true, name: bg.src };
-    if (!quiet) toast(`Background “${bg.src}” could not be loaded.`, { type: 'warn' });
+    if (!quiet) toast(t('toast.backgroundLoadFailed', { src: bg.src }), { type: 'warn' });
   }
   emit('background');
 }
@@ -280,7 +289,7 @@ export async function resolveBackground({ blob = null, quiet = false } = {}) {
 export async function attachBackgroundFile(file) {
   const url = URL.createObjectURL(file);
   let size;
-  try { size = await imageSize(url); } catch (e) { toast(`Cannot read image: ${e.message}`, { type: 'error' }); return; }
+  try { size = await imageSize(url); } catch (e) { toast(t('toast.cannotReadImage', { error: e.message }), { type: 'error' }); return; }
   const bg = store.doc.view.background;
   const sameName = bg?.src && bg.src.split('/').pop() === file.name && bg.calibration?.length === 2;
   if (store.background?.url?.startsWith('blob:')) URL.revokeObjectURL(store.background.url);
@@ -288,7 +297,7 @@ export async function attachBackgroundFile(file) {
   emit('background-file', file); // session.js keeps it in the project so it survives reloads
   if (sameName) {
     emit('background');
-    toast(`Attached ${file.name} using its saved calibration.`, { type: 'ok' });
+    toast(t('toast.backgroundAttached', { file: file.name }), { type: 'ok' });
     return;
   }
   change((doc) => {
@@ -299,9 +308,9 @@ export async function attachBackgroundFile(file) {
     };
   });
   emit('background');
-  toast(`Background ${file.name} (${size.width}×${size.height}) stretched to the bounds. Calibrate it: pick the Calibrate tool (K) and click 2 known points.`, {
+  toast(t('toast.backgroundStretched', { file: file.name, w: String(size.width), h: String(size.height) }), {
     timeout: 9000,
-    actions: [{ label: 'Calibrate now', onClick: () => emit('set-tool', 'calibrate') }],
+    actions: [{ label: t('toast.calibrateNow'), onClick: () => emit('set-tool', 'calibrate') }],
   });
 }
 

@@ -8,53 +8,57 @@
   <meta name="description" content="IluMap — open-source vector map editor for game worlds. map.json is the source of truth.">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23171717'/%3E%3Cpath d='M6 22c3-9 7-12 11-9s5 1 9-5' fill='none' stroke='%2310a37f' stroke-width='2.5' stroke-linecap='round'/%3E%3Ccircle cx='21' cy='20' r='3.2' fill='%23f5c542'/%3E%3C/svg%3E">
   <script>
-    // apply the UI theme before first paint (see src/app/settings.js)
+    // apply the UI theme and language before first paint (see src/app/settings.js, src/app/i18n/index.js)
     (function () {
       var t = 'system';
       try { t = localStorage.getItem('ilumap.uiTheme') || 'system'; } catch (e) { /* storage disabled */ }
       if (t === 'system') t = window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
       document.documentElement.setAttribute('data-ui-theme', t === 'light' ? 'light' : 'dark');
+      var l = null;
+      try { l = localStorage.getItem('ilumap.lang'); } catch (e) { /* storage disabled */ }
+      if (l !== 'ru' && l !== 'en') l = 'en';
+      document.documentElement.lang = l;
     })();
   </script>
   <link rel="stylesheet" href="src/app/styles.css">
 </head>
 <body>
   <div id="app">
-    <aside id="sidebar" aria-label="Maps"></aside>
+    <aside id="sidebar" aria-label="Maps" data-i18n-aria-label="sidebar.aria"></aside>
 
     <main id="stage">
-      <svg id="canvas" tabindex="0" xmlns="http://www.w3.org/2000/svg" aria-label="Map canvas"></svg>
+      <svg id="canvas" tabindex="0" xmlns="http://www.w3.org/2000/svg" aria-label="Map canvas" data-i18n-aria-label="app.canvas"></svg>
 
       <!-- floating chrome (everything with .chrome sits on top of the canvas) -->
-      <button id="sidebar-open" class="chrome fab" type="button" title="Open sidebar (Ctrl+B)" aria-label="Open sidebar" hidden></button>
+      <button id="sidebar-open" class="chrome fab" type="button" title="Open sidebar (Ctrl+B)" aria-label="Open sidebar" data-i18n-title="sidebar.open" data-i18n-aria-label="sidebar.openAria" hidden></button>
       <div id="title-pill" class="chrome pill"></div>
-      <div id="panel-toggles" class="chrome pill" role="toolbar" aria-label="Panels"></div>
-      <div id="history-pill" class="chrome pill" role="toolbar" aria-label="History"></div>
+      <div id="panel-toggles" class="chrome pill" role="toolbar" aria-label="Panels" data-i18n-aria-label="panels.toggles"></div>
+      <div id="history-pill" class="chrome pill" role="toolbar" aria-label="History" data-i18n-aria-label="history.aria"></div>
 
-      <nav id="toolbar" class="chrome tb-stack" aria-label="Tools"></nav>
-      <div id="view-tools" class="chrome tb-stack" role="toolbar" aria-label="View"></div>
+      <nav id="toolbar" class="chrome tb-stack" aria-label="Tools" data-i18n-aria-label="toolbar.tools"></nav>
+      <div id="view-tools" class="chrome tb-stack" role="toolbar" aria-label="View" data-i18n-aria-label="toolbar.view"></div>
 
       <div id="dock-left" class="dock-col"></div>
       <div id="dock-right" class="dock-col"></div>
       <div id="float-layer"></div>
 
       <div id="hud" class="chrome hud" hidden></div>
-      <div id="dock" class="chrome pill" role="toolbar" aria-label="Layer dock"></div>
+      <div id="dock" class="chrome pill" role="toolbar" aria-label="Layer dock" data-i18n-aria-label="dock.aria"></div>
 
       <div id="nav-corner" class="chrome">
         <div id="scalebar"><div class="bar"></div><div class="lbl"></div></div>
-        <div id="minimap" class="card" title="Minimap — click or drag to navigate"></div>
+        <div id="minimap" class="card" title="Minimap — click or drag to navigate" data-i18n-title="app.minimap"></div>
       </div>
       <div id="coords" class="chrome mono" aria-live="off"></div>
-      <div id="zoom-pill" class="chrome pill" role="toolbar" aria-label="View options and zoom"></div>
+      <div id="zoom-pill" class="chrome pill" role="toolbar" aria-label="View options and zoom" data-i18n-aria-label="zoom.aria"></div>
 
-      <div id="drop-hint">Drop a <b>map.json</b> to open it as a local map, or an <b>image</b> to use as background</div>
+      <div id="drop-hint" data-i18n-html="app.dropHint">Drop a <b>map.json</b> to open it as a local map, or an <b>image</b> to use as background</div>
     </main>
   </div>
   <div id="menus"></div>
   <div id="dialogs"></div>
   <div id="toasts" aria-live="polite"></div>
-  <noscript>IluMap needs JavaScript (ES modules). Serve this folder over HTTP, e.g. <code>python -m http.server</code>.</noscript>
+  <noscript>IluMap needs JavaScript (ES modules). Serve this folder over HTTP, e.g. <code>python -m http.server</code>. / Для IluMap нужен JavaScript (ES-модули): откройте папку через HTTP-сервер, например <code>python -m http.server</code>.</noscript>
   <script type="module" src="src/app/main.js"></script>
 </body>
 </html>

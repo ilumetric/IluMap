@@ -4,7 +4,8 @@
 import { store, on, change, emit } from '../state.js';
 import { LAND_MODES } from '../../core/schema.js';
 import { fitPairs } from '../../core/calibration.js';
-import { formatLength } from '../../core/text-export.js';
+import { t, label, onLangChange } from '../i18n/index.js';
+import { fmtLength, unitLabel } from '../i18n/format.js';
 import { h, clear, renderKeepingFocus, toast } from '../dom.js';
 import { pickBackgroundImage } from '../io.js';
 
@@ -31,14 +32,14 @@ export function mountMapSettings(root, { canvas }) {
 
       const flip = h('input', { type: 'checkbox', name: 'flipY', checked: !!m.flipY });
       flip.addEventListener('change', () => { change((d) => { d.meta.flipY = flip.checked; }); emit('background'); });
-      const landMode = h('select', { name: 'landMode' }, LAND_MODES.map((v) => h('option', { value: v, selected: m.landMode === v }, v === 'islands' ? 'islands — land polygons on ocean' : 'filled — whole bounds is land')));
+      const landMode = h('select', { name: 'landMode' }, LAND_MODES.map((v) => h('option', { value: v, selected: m.landMode === v }, t(`map.landModes.${v}`))));
       landMode.addEventListener('change', () => setMeta('landMode')(landMode.value));
 
       const boundsIn = (i, j, name) => input(name, (j ? b.max : b.min)[i], (v) => {
         if (v == null) return;
         const nb = { min: b.min.slice(), max: b.max.slice() };
         (j ? nb.max : nb.min)[i] = v;
-        if (!(nb.min[0] < nb.max[0] && nb.min[1] < nb.max[1])) { toast('Bounds min must be smaller than max', { type: 'error' }); render(); return; }
+        if (!(nb.min[0] < nb.max[0] && nb.min[1] < nb.max[1])) { toast(t('toast.boundsOrder'), { type: 'error' }); render(); return; }
         change((d) => { d.view.bounds = nb; });
         canvas.fit();
       }, { type: 'number', step: 'any' });
@@ -47,31 +48,31 @@ export function mountMapSettings(root, { canvas }) {
       gridVis.addEventListener('change', () => change((d) => { d.view.grid.visible = gridVis.checked; }));
 
       body.append(
-        h('section', { class: 'insp-section' }, h('h4', {}, 'Map'),
-          field('Name', input('mapName2', m.name, setMeta('name'))),
-          field('Description', (() => {
+        h('section', { class: 'insp-section' }, h('h4', {}, t('map.section')),
+          field(t('map.name'), input('mapName2', m.name, setMeta('name'))),
+          field(t('map.description'), (() => {
             const t = h('textarea', { name: 'description', rows: 3 });
             t.value = m.description || '';
             t.addEventListener('change', () => setMeta('description')(t.value));
             return t;
           })()),
           h('div', { class: 'row2' },
-            field('Units', input('units', m.units, setMeta('units'), { placeholder: 'cm' })),
-            field('Display unit', input('displayUnit', m.displayUnit, setMeta('displayUnit'), { placeholder: 'm' }))),
-          field(`${m.units} per ${m.displayUnit}`, input('displayUnitScale', m.displayUnitScale, (v) => { if (v > 0) setMeta('displayUnitScale')(v); else toast('Must be > 0', { type: 'error' }); }, { type: 'number', min: 0, step: 'any' })),
-          h('label', { class: 'check' }, flip, h('span', {}, 'flipY — +y is up (engine-like). Off: +y is down (image-like).')),
-          field('Land mode', landMode)),
-        h('section', { class: 'insp-section' }, h('h4', {}, 'Bounds & grid'),
-          h('div', { class: 'row2' }, field('min x', boundsIn(0, 0, 'bminx')), field('min y', boundsIn(1, 0, 'bminy'))),
-          h('div', { class: 'row2' }, field('max x', boundsIn(0, 1, 'bmaxx')), field('max y', boundsIn(1, 1, 'bmaxy'))),
-          h('p', { class: 'muted small' }, `${formatLength(b.max[0] - b.min[0], m)} × ${formatLength(b.max[1] - b.min[1], m)} — also the default mask extent.`),
+            field(t('map.units'), input('units', m.units, setMeta('units'), { placeholder: 'cm', title: t('map.unitsTitle') })),
+            field(t('map.displayUnit'), input('displayUnit', m.displayUnit, setMeta('displayUnit'), { placeholder: 'm', title: t('map.displayUnitTitle') }))),
+          field(t('map.unitsPer', { units: unitLabel(m.units), display: unitLabel(m.displayUnit) }), input('displayUnitScale', m.displayUnitScale, (v) => { if (v > 0) setMeta('displayUnitScale')(v); else toast(t('toast.mustBePositive'), { type: 'error' }); }, { type: 'number', min: 0, step: 'any' })),
+          h('label', { class: 'check' }, flip, h('span', {}, t('map.flipY'))),
+          field(t('map.landMode'), landMode)),
+        h('section', { class: 'insp-section' }, h('h4', {}, t('map.boundsGrid')),
+          h('div', { class: 'row2' }, field(t('map.minX'), boundsIn(0, 0, 'bminx')), field(t('map.minY'), boundsIn(1, 0, 'bminy'))),
+          h('div', { class: 'row2' }, field(t('map.maxX'), boundsIn(0, 1, 'bmaxx')), field(t('map.maxY'), boundsIn(1, 1, 'bmaxy'))),
+          h('p', { class: 'muted small' }, t('map.boundsSize', { w: fmtLength(b.max[0] - b.min[0], m), h: fmtLength(b.max[1] - b.min[1], m) })),
           h('div', { class: 'row2' },
-            field(`Grid step (${m.units})`, input('gridStep', doc.view.grid.step, (v) => { if (v > 0) change((d) => { d.view.grid.step = v; }); }, { type: 'number', min: 0, step: 'any' }), formatLength(doc.view.grid.step, m)),
-            h('label', { class: 'check' }, gridVis, h('span', {}, 'Show grid (G)')))),
+            field(t('map.gridStep', { units: unitLabel(m.units) }), input('gridStep', doc.view.grid.step, (v) => { if (v > 0) change((d) => { d.view.grid.step = v; }); }, { type: 'number', min: 0, step: 'any' }), fmtLength(doc.view.grid.step, m)),
+            h('label', { class: 'check' }, gridVis, h('span', {}, t('map.showGrid'))))),
       );
 
-      const bgSec = h('section', { class: 'insp-section' }, h('h4', {}, 'Background image'));
-      const kept = store.project?.backgroundBlobKey ? ' The image itself is kept with this map in the browser.' : '';
+      const bgSec = h('section', { class: 'insp-section' }, h('h4', {}, t('background.title')));
+      const kept = store.project?.backgroundBlobKey ? ` ${t('background.kept')}` : '';
       if (bg) {
         const op = h('input', { type: 'range', name: 'bgOpacity', min: 0, max: 1, step: 0.05, value: bg.opacity ?? 0.6 });
         op.addEventListener('input', () => { store.doc.view.background.opacity = Number(op.value); emit('background'); });
@@ -83,20 +84,20 @@ export function mountMapSettings(root, { canvas }) {
         });
         const st = store.background;
         bgSec.append(
-          field('Source (relative to map.json)', input('bgSrc', bg.src, (v) => { change((d) => { d.view.background.src = v; }); }), st?.url ? `${st.width}×${st.height}px loaded.${kept}` : 'not loaded — drop the image onto the canvas'),
-          field('Opacity', op),
-          h('p', { class: 'muted small mono' }, (bg.calibration || []).map((c, i) => `#${i + 1} px(${c.px.join(', ')}) → world(${c.world.join(', ')})`).join('\n') || 'not calibrated'),
+          field(t('background.source'), input('bgSrc', bg.src, (v) => { change((d) => { d.view.background.src = v; }); }), st?.url ? `${t('background.loaded', { w: String(st.width), h: String(st.height) })}${kept}` : t('background.notLoaded')),
+          field(t('background.opacity'), op),
+          h('p', { class: 'muted small mono' }, (bg.calibration || []).map((c, i) => `#${i + 1} px(${c.px.join(', ')}) → world(${c.world.join(', ')})`).join('\n') || t('background.notCalibrated')),
           h('div', { class: 'insp-actions' },
-            h('button', { class: 'btn btn-small', onclick: () => emit('set-tool', 'calibrate') }, 'Calibrate (K)'),
+            h('button', { class: 'btn btn-small', onclick: () => emit('set-tool', 'calibrate') }, `${t('background.calibrate')} (K)`),
             h('button', {
-              class: 'btn btn-small', disabled: !st?.url, title: 'Stretch the image across the bounds again',
+              class: 'btn btn-small', disabled: !st?.url, title: t('background.fitTitle'),
               onclick: () => change((d) => { d.view.background.calibration = fitPairs(d.view.bounds, st.width, st.height, !!d.meta.flipY); }),
-            }, 'Fit to bounds'),
-            h('button', { class: 'btn btn-small', onclick: pickBackgroundImage }, 'Replace…'),
-            h('button', { class: 'btn btn-small btn-danger', onclick: () => { change((d) => { delete d.view.background; }); store.background = null; emit('background'); } }, 'Remove')));
+            }, t('background.fitBounds')),
+            h('button', { class: 'btn btn-small', onclick: pickBackgroundImage }, t('background.replace')),
+            h('button', { class: 'btn btn-small btn-danger', onclick: () => { change((d) => { delete d.view.background; }); store.background = null; emit('background'); } }, t('background.remove'))));
       } else {
-        bgSec.append(h('p', { class: 'muted small' }, 'Drop a PNG/JPG (a sketch, a heightmap) onto the canvas, or pick one. It is stored as a relative path; calibrate it with 2 known points.'),
-          h('button', { class: 'btn btn-small', onclick: pickBackgroundImage }, 'Load image…'));
+        bgSec.append(h('p', { class: 'muted small' }, t('background.mapHint')),
+          h('button', { class: 'btn btn-small', onclick: pickBackgroundImage }, t('background.load')));
       }
       body.append(bgSec);
     });
@@ -110,5 +111,6 @@ export function mountMapSettings(root, { canvas }) {
   };
   on('doc', (d) => { if (!d?.live) schedule(); });
   on('background', schedule);
+  onLangChange(schedule);
   render();
 }

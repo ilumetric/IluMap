@@ -31,6 +31,10 @@ derived from that file.
 - **World units, not pixels:** coordinates are engine units (Unreal centimetres
   by default); a background sketch is calibrated to the world, never the other
   way round.
+- **Russian and English UI:** switch with the `RU` / `EN` pill next to Settings
+  (or Settings → Language / Язык); it applies at once and never touches the
+  map data — ids, types and statuses in `map.json` stay English, only their
+  labels are translated.
 
 ## Quick start
 
@@ -79,9 +83,13 @@ memory for the session only.
 - **Panels** float over the canvas; drag them by the header, double-click the
   header to dock them again. The Inspector opens on selection (pin to turn
   that off) and shows the map's own settings when nothing is selected.
-- **Settings** (bottom of the sidebar): interface theme (System / Dark /
-  Light), map style for new maps, coordinate units, autosave, clearing local
-  maps.
+- **Settings** (bottom of the sidebar, `Ctrl+,`, or the gear in the right
+  toolbar while the sidebar is collapsed): language (Русский / English),
+  interface theme (System / Dark / Light), map style for new maps, coordinate
+  units, autosave, clearing local maps.
+- **Language:** the `RU` / `EN` pill next to Settings. The first launch follows
+  the browser (Russian when any preferred language is Russian, otherwise
+  English); the choice is remembered.
 
 ### Enable GitHub Pages
 
@@ -200,7 +208,7 @@ The editor has the same export under **Export → Masks…** (top bar).
 | `Delete` · arrows | Delete · nudge the selection |
 | `Ctrl+Z` / `Ctrl+Y` | Undo / redo |
 | `Ctrl+S` / `Ctrl+Shift+S` / `Ctrl+O` | Save to map.json / save as / open a map.json as a local map |
-| `Ctrl+B` · `Ctrl+K` | Show / hide the sidebar · search local maps |
+| `Ctrl+B` · `Ctrl+K` · `Ctrl+,` | Show / hide the sidebar · search local maps · settings (language, theme) |
 | `G` · `/` · `?` · `F2` | Grid · search POIs · help · rename the map |
 | `[` · `]` | Layers panel · Points + Inspector panels |
 
@@ -216,8 +224,30 @@ npm test          # = node --test "test/*.test.js" (no dependencies to install)
 - `src/app/` — the editor UI (DOM only). UI look and components:
   [docs/DESIGN.md](docs/DESIGN.md).
 - `tools/ilumap.mjs` — the CLI.
+- `src/app/i18n/` — UI languages (see below).
 
 No build step, no npm packages — keep it that way.
+
+### Languages
+
+UI strings live in `src/app/i18n/ru.js` and `src/app/i18n/en.js`: plain ES
+modules exporting flat objects with dotted keys grouped by area (`sidebar.*`,
+`tools.*`, `inspector.*`, `toast.*`, …). Counted phrases are objects of
+plural forms (`{ one, few, many, other }` for Russian, `{ one, other }` for
+English). Code uses `t('key', { name })`, `plural('key', n)` and
+`label('poiTypes', value)` from `src/app/i18n/index.js`; map data is never
+translated. The CLI and the text export for agents stay English.
+
+To add a language:
+
+1. Copy `src/app/i18n/en.js` to `src/app/i18n/<code>.js` and translate the
+   values (keep the keys and `{placeholders}`; give plural entries every
+   category `Intl.PluralRules('<code>')` uses).
+2. Import it in `src/app/i18n/index.js` and add it to `DICTIONARIES` and to
+   `LANGUAGES` (Russian stays first), and to the language check in the early
+   script in `index.html`.
+3. Run `npm test` — `test/i18n.test.js` checks that every dictionary has the
+   same keys and placeholders, complete plural forms and no empty strings.
 
 ## License
 

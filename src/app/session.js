@@ -10,8 +10,9 @@ import { store, on, emit, setDoc, emptyDoc, change, savePrefs } from './state.js
 import { normalize, serialize } from '../core/model.js';
 import { LAND_MODES } from '../core/schema.js';
 import { PRESETS } from '../core/styles.js';
-import { parseMapText, fetchMapText, resolveBackground, attachBackgroundFile, exportJson, JSON_PICKER_TYPES } from './io.js';
+import { parseMapText, fetchMapText, resolveBackground, attachBackgroundFile, exportJson, jsonPickerTypes } from './io.js';
 import { toast, confirmDialog, openDialog, download, h } from './dom.js';
+import { t, label } from './i18n/index.js';
 
 export const DEMO_URL = 'examples/demo/map.json';
 const AUTOSAVE_DELAY = 500;
@@ -65,7 +66,7 @@ export async function persistNow() {
     await P.put(rec);
   } catch (e) {
     unpersisted = true;
-    toast(`Could not store the browser copy: ${e.message}`, { type: 'error' });
+    toast(t('toast.storeFailed', { error: e.message }), { type: 'error' });
     return;
   }
   upsertCache(rec);
@@ -98,7 +99,7 @@ on('background-file', async (file) => {
     store.project = { ...store.project, backgroundBlobKey: key };
     await persistNow();
   } catch (e) {
-    toast(`The background image could not be stored in the browser: ${e.message}`, { type: 'warn' });
+    toast(t('toast.backgroundStoreFailed', { error: e.message }), { type: 'warn' });
   }
 });
 
@@ -128,7 +129,7 @@ async function loadBackground(rec) {
 async function leaveCurrent() {
   if (!store.project) return true;
   if (unpersisted && !store.prefs.autosave) {
-    const ok = await confirmDialog(`“${store.doc.meta.name}” has changes that are not stored (autosave is off). Discard them?`, { title: 'Unsaved changes', okText: 'Discard', danger: true });
+    const ok = await confirmDialog(t('dialogs.discard.message', { name: store.doc.meta.name }), { title: t('dialogs.discard.title'), okText: t('dialogs.discard.ok'), danger: true });
     if (!ok) return false;
     unpersisted = false;
     return true;
@@ -140,7 +141,7 @@ async function leaveCurrent() {
 async function openRecord(rec) {
   let doc;
   try { doc = normalize(rec.doc); } catch (e) {
-    toast(`Local map “${rec.name}” is damaged (${e.message}); opened an empty map instead.`, { type: 'error', timeout: 8000 });
+    toast(t('toast.projectDamaged', { name: rec.name, error: e.message }), { type: 'error', timeout: 8000 });
     doc = emptyDoc({ name: rec.name || 'Untitled' });
   }
   if (store.background?.url?.startsWith('blob:')) URL.revokeObjectURL(store.background.url);
@@ -162,7 +163,7 @@ export async function openProject(id) {
   if (store.project?.id === id) return true;
   if (!(await leaveCurrent())) return false;
   const rec = await P.get(id);
-  if (!rec) { toast('That map no longer exists.', { type: 'warn' }); await refreshList(); return false; }
+  if (!rec) { toast(t('toast.projectGone'), { type: 'warn' }); await refreshList(); return false; }
   await openRecord(rec);
   return true;
 }
@@ -175,7 +176,7 @@ async function createProject(doc, { fileName = 'map.json', handle = null, baseUr
   const rec = { id: P.newId(), name: doc.meta?.name || 'Untitled', createdAt: now, updatedAt: now, doc: text, savedText: savedText ?? text, fileName };
   if (baseUrl) rec.baseUrl = baseUrl;
   if (handle) rec.fileHandle = handle;
-  try { await P.put(rec); } catch (e) { toast(`Could not store the map in the browser: ${e.message}`, { type: 'error' }); }
+  try { await P.put(rec); } catch (e) { toast(t('toast.projectStoreFailed', { error: e.message }), { type: 'error' }); }
   upsertCache(rec);
   if (open) await openRecord(rec);
   return rec;
@@ -188,7 +189,7 @@ async function importText(text, { name = 'map.json', handle = null, baseUrl = nu
   const canonical = serialize(doc);
   const rec = await createProject(doc, { fileName: name, handle, baseUrl, savedText: canonical });
   if (rec && !quiet && canonical !== text.replace(/\r\n/g, '\n')) {
-    toast('File loaded. It will be saved in canonical format (key order, one [x, y] per line).', { timeout: 4500 });
+    toast(t('toast.canonical'), { timeout: 4500 });
   }
   return rec;
 }
@@ -205,7 +206,7 @@ async function reloadFromDisk(handle, text) {
     loading = false;
   }
   await persistNow();
-  toast(`Reloaded ${handle.name} from disk.`, { type: 'ok' });
+  toast(t('toast.reloaded', { file: handle.name }), { type: 'ok' });
 }
 
 /** A file that is already a project: focus it and reconcile with the disk content. */
@@ -213,13 +214,13 @@ async function focusExisting(rec, handle, text) {
   if (!(await openProject(rec.id))) return;
   const canonical = parseMapText(text, handle.name) && serialize(normalize(text));
   if (!canonical || canonical === store.savedText) {
-    toast(`“${rec.name}” is already a local map — switched to it.`, { timeout: 2500 });
+    toast(t('toast.alreadyLocal', { name: rec.name }), { timeout: 2500 });
     return;
   }
   if (!store.dirty) { await reloadFromDisk(handle, text); return; }
-  toast(`${handle.name} changed on disk, and the browser copy has unsaved edits.`, {
+  toast(t('toast.changedOnDisk', { file: handle.name }), {
     type: 'warn', timeout: 12000,
-    actions: [{ label: 'Load disk version', onClick: () => reloadFromDisk(handle, text) }],
+    actions: [{ label: t('toast.loadDiskVersion'), onClick: () => reloadFromDisk(handle, text) }],
   });
 }
 
@@ -230,16 +231,16 @@ export async function openFileCommand() {
   if ('showOpenFilePicker' in window) {
     let handle;
     try {
-      [handle] = await window.showOpenFilePicker({ types: JSON_PICKER_TYPES, multiple: false });
+      [handle] = await window.showOpenFilePicker({ types: jsonPickerTypes(), multiple: false });
     } catch (e) {
-      if (e.name !== 'AbortError') toast(`Open failed: ${e.message}`, { type: 'error' });
+      if (e.name !== 'AbortError') toast(t('toast.openFailed', { error: e.message }), { type: 'error' });
       return;
     }
     const file = await handle.getFile();
     const text = await file.text();
     const existing = await P.findByHandle(handle);
     if (existing) { await focusExisting(existing, handle, text); return; }
-    if (await importText(text, { name: file.name, handle })) toast(`Opened ${file.name} — Ctrl+S saves back to it.`);
+    if (await importText(text, { name: file.name, handle })) toast(t('toast.openedLinked', { file: file.name }));
     return;
   }
   const input = h('input', { type: 'file', accept: '.json,application/json', style: { display: 'none' } });
@@ -263,31 +264,31 @@ export async function handleDroppedFiles(files, handles = []) {
     const existing = handle ? await P.findByHandle(handle) : null;
     if (existing) await focusExisting(existing, handle, text);
     else if (await importText(text, { name: file.name, handle })) {
-      toast(handle ? `Opened ${file.name} — Ctrl+S saves back to it.` : `Opened ${file.name} as a new local map (Save as… to write it to disk).`, { timeout: 4500 });
+      toast(handle ? t('toast.openedLinked', { file: file.name }) : t('toast.openedCopy', { file: file.name }), { timeout: 4500 });
     }
   }
   if (img) await attachBackgroundFile(img);
-  if (idx < 0 && !img) toast('Drop a map.json or an image (PNG/JPG).', { type: 'warn' });
+  if (idx < 0 && !img) toast(t('toast.dropWhat'), { type: 'warn' });
 }
 
 /** Sidebar "New map". */
 export async function newMapCommand() {
   const res = await openDialog({
-    title: 'New map',
-    message: 'Coordinates are world units (UE centimetres by default). Everything can be changed later in the Inspector (nothing selected).',
+    title: t('dialogs.newMap.title'),
+    message: t('dialogs.newMap.message'),
     fields: [
-      { name: 'template', label: 'Start from', type: 'select', value: 'empty', options: [['empty', 'Empty map'], ['demo', 'Demo map (archipelago)']] },
-      { name: 'name', label: 'Name', value: 'Untitled' },
-      { name: 'width', label: 'Width (world units)', type: 'number', value: 400000, min: 1, step: 'any' },
-      { name: 'height', label: 'Height (world units)', type: 'number', value: 400000, min: 1, step: 'any' },
-      { name: 'units', label: 'Units', value: 'cm' },
-      { name: 'displayUnit', label: 'Display unit', value: 'm' },
-      { name: 'displayUnitScale', label: 'Units per display unit', type: 'number', value: 100, min: 0, step: 'any' },
-      { name: 'landMode', label: 'Land mode', type: 'select', value: 'islands', options: LAND_MODES },
-      { name: 'preset', label: 'Map style', type: 'select', value: store.prefs.newMapPreset || 'graphite', options: Object.keys(PRESETS) },
-      { name: 'flipY', label: 'flipY (+y up, engine-like)', type: 'checkbox', value: false },
+      { name: 'template', label: t('dialogs.newMap.template'), type: 'select', value: 'empty', options: [['empty', t('dialogs.newMap.empty')], ['demo', t('dialogs.newMap.demo')]] },
+      { name: 'name', label: t('dialogs.newMap.name'), value: 'Untitled' },
+      { name: 'width', label: t('dialogs.newMap.width'), type: 'number', value: 400000, min: 1, step: 'any' },
+      { name: 'height', label: t('dialogs.newMap.height'), type: 'number', value: 400000, min: 1, step: 'any' },
+      { name: 'units', label: t('dialogs.newMap.units'), value: 'cm' },
+      { name: 'displayUnit', label: t('dialogs.newMap.displayUnit'), value: 'm' },
+      { name: 'displayUnitScale', label: t('dialogs.newMap.unitsPer'), type: 'number', value: 100, min: 0, step: 'any' },
+      { name: 'landMode', label: t('dialogs.newMap.landMode'), type: 'select', value: 'islands', options: LAND_MODES.map((m) => [m, t(`map.landModes.${m}`)]) },
+      { name: 'preset', label: t('dialogs.newMap.preset'), type: 'select', value: store.prefs.newMapPreset || 'graphite', options: Object.keys(PRESETS).map((p) => [p, label('presets', p)]) },
+      { name: 'flipY', label: t('dialogs.newMap.flipY'), type: 'checkbox', value: false },
     ],
-    okText: 'Create',
+    okText: t('dialogs.newMap.ok'),
   });
   if (!res) return;
   if (res.template === 'demo') {
@@ -307,10 +308,10 @@ async function createFromDemo({ quiet = true } = {}) {
   try {
     const abs = new URL(DEMO_URL, location.href).href;
     const rec = await importText(await fetchMapText(DEMO_URL), { name: 'map.json', baseUrl: abs, quiet: true });
-    if (rec && !quiet) toast('Created a local copy of the demo map.', { type: 'ok' });
+    if (rec && !quiet) toast(t('toast.demoCopied'), { type: 'ok' });
     return rec;
   } catch (e) {
-    if (!quiet) toast(`Could not load the demo: ${e.message}`, { type: 'error' });
+    if (!quiet) toast(t('toast.demoFailed', { error: e.message }), { type: 'error' });
     return createProject(emptyDoc());
   }
 }
@@ -349,7 +350,7 @@ export async function duplicateProject(id) {
   }
   await P.put(copy);
   upsertCache(copy);
-  toast(`Duplicated as “${copy.name}” (not linked to a file).`, { type: 'ok', actions: [{ label: 'Open', onClick: () => openProject(copy.id) }] });
+  toast(t('toast.duplicated', { name: copy.name }), { type: 'ok', actions: [{ label: t('toast.open'), onClick: () => openProject(copy.id) }] });
 }
 
 export async function exportProjectJson(id) {
@@ -361,32 +362,32 @@ export async function exportProjectJson(id) {
 export async function deleteProject(id) {
   const rec = cache.find((p) => p.id === id) || await P.get(id);
   if (!rec) return;
-  const ok = await confirmDialog(`Delete “${rec.name}” from this browser? Files on disk are not touched${rec.fileHandle ? '' : ' — and this map is not linked to a file, so export it first if you need it'}.`, { title: 'Delete map', okText: 'Delete', danger: true });
+  const ok = await confirmDialog(t(rec.fileHandle ? 'dialogs.deleteMap.messageLinked' : 'dialogs.deleteMap.messageUnlinked', { name: rec.name }), { title: t('dialogs.deleteMap.title'), okText: t('dialogs.deleteMap.ok'), danger: true });
   if (!ok) return;
   const wasCurrent = store.project?.id === id;
   if (wasCurrent) { clearTimeout(persistTimer); persistTimer = 0; unpersisted = false; store.project = null; }
-  try { await P.remove(id); } catch (e) { toast(`Delete failed: ${e.message}`, { type: 'error' }); }
+  try { await P.remove(id); } catch (e) { toast(t('toast.deleteFailed', { error: e.message }), { type: 'error' }); }
   cache = cache.filter((p) => p.id !== id);
   emit('projects');
   if (wasCurrent) {
     if (cache.length) await openRecord(await P.get(cache[0].id) || cache[0]);
     else await createProject(emptyDoc());
   }
-  toast(`Deleted “${rec.name}”.`, { timeout: 2500 });
+  toast(t('toast.projectDeleted', { name: rec.name }), { timeout: 2500 });
 }
 
 export async function clearAllProjects() {
-  const ok = await confirmDialog('Delete every map stored in this browser? Files on disk are not touched; maps that are not linked to a file are lost.', { title: 'Clear local maps', okText: 'Delete all', danger: true });
+  const ok = await confirmDialog(t('dialogs.clearMaps.message'), { title: t('dialogs.clearMaps.title'), okText: t('dialogs.clearMaps.ok'), danger: true });
   if (!ok) return false;
   clearTimeout(persistTimer);
   persistTimer = 0;
   unpersisted = false;
   store.project = null;
-  try { await P.clearAll(); } catch (e) { toast(`Could not clear: ${e.message}`, { type: 'error' }); }
+  try { await P.clearAll(); } catch (e) { toast(t('toast.clearFailed', { error: e.message }), { type: 'error' }); }
   cache = [];
   emit('projects');
   await createFromDemo();
-  toast('Local maps cleared.', { type: 'ok' });
+  toast(t('toast.cleared'), { type: 'ok' });
   return true;
 }
 
@@ -398,7 +399,7 @@ async function migrateLegacyDraft() {
   try {
     const doc = normalize(draft.text);
     await createProject(doc, { fileName: draft.name || 'map.json', savedText: '', open: false });
-    toast('Your unsaved draft from the previous version is now a local map.', { type: 'ok', timeout: 6000 });
+    toast(t('toast.draftMigrated'), { type: 'ok', timeout: 6000 });
   } catch (e) {
     console.warn('[ilumap] could not migrate the old draft', e);
   }
@@ -407,7 +408,7 @@ async function migrateLegacyDraft() {
 
 export async function initSession() {
   if (!(await P.init())) {
-    toast('Browser storage is unavailable (private window?) — maps live in memory for this session only. Save to a file to keep your work.', { type: 'warn', timeout: 10000 });
+    toast(t('toast.noStorage'), { type: 'warn', timeout: 10000 });
   }
   await migrateLegacyDraft();
   await refreshList();
@@ -419,7 +420,7 @@ export async function initSession() {
     try {
       if (await importText(await fetchMapText(mapUrl), { name: abs.split('/').pop() || 'map.json', baseUrl: abs })) return;
     } catch (e) {
-      toast(`Could not load ${mapUrl}: ${e.message}`, { type: 'error' });
+      toast(t('toast.urlLoadFailed', { url: mapUrl, error: e.message }), { type: 'error' });
     }
   }
   const last = cache.find((p) => p.id === store.prefs.lastProjectId) || cache[0];

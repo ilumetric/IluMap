@@ -1,17 +1,27 @@
 // Shared layer metadata for the chrome (dock, toolbar underlines, layers panel):
-// labels, 2-letter abbreviations, the colour that represents a layer, and the
+// labels and 2-letter abbreviations (localised, see i18n/), the colour that represents a layer, and the
 // type used for newly drawn features / POIs.
 
 import { store, savePrefs, emit } from '../state.js';
 import { resolveStyle } from '../../core/styles.js';
+import { t, label } from '../i18n/index.js';
 
-export const LABELS = {
-  land: 'Land', water: 'Water', coast: 'Coast', rivers: 'Rivers', roads: 'Roads', rails: 'Rails', walls: 'Walls', zones: 'Zones', pois: 'POIs', labels: 'Labels',
-};
+/** Display name of a layer key ("roads" -> "Дороги" / "Roads"). Layer keys themselves are data. */
+export const layerLabel = (layer) => label('layers', layer);
 
-export const ABBR = {
-  land: 'La', water: 'Wa', coast: 'Co', rivers: 'Ri', roads: 'Ro', rails: 'Ra', walls: 'Wl', zones: 'Zo', pois: 'Po',
-};
+/** 2-letter chip abbreviation of a layer, per language. */
+export const layerAbbr = (layer) => t(`layers.abbr.${layer}`);
+
+/** Style type group holding the types of a layer's features. */
+export function typeGroupOf(layer) {
+  if (layer === 'pois') return 'poiTypes';
+  if (layer === 'zones') return 'zoneTypes';
+  if (layer === 'walls') return 'wallTypes';
+  return 'lineTypes';
+}
+
+/** Display name of a feature / POI type ("mine" -> "Шахта"); custom types show their raw value. */
+export const typeLabel = (layer, type) => label(typeGroupOf(layer), type);
 
 /** Layers shown as chips in the dock, bottom to top of the usual workflow. */
 export const DOCK_LAYERS = ['land', 'water', 'coast', 'rivers', 'roads', 'rails', 'walls', 'zones', 'pois'];

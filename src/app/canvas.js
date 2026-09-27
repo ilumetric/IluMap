@@ -8,7 +8,8 @@ import { renderParts, renderGrid, viewRectOfBounds, toView, fromView, esc } from
 import { resolveStyle } from '../core/styles.js';
 import { fromPairs } from '../core/calibration.js';
 import { findById } from '../core/model.js';
-import { formatLength } from '../core/text-export.js';
+import { fmtLength } from './i18n/format.js';
+import { onLangChange } from './i18n/index.js';
 import { catmullRomToPath, linearPath } from '../core/geometry.js';
 
 const r2 = (v) => Math.round(v * 100) / 100;
@@ -56,6 +57,7 @@ export class Canvas {
     on('layers', () => this.invalidate('content', 'overlay'));
     on('tool', () => { this.updateCursor(); this.invalidate('tool'); });
     on('background', () => this.invalidate('bg'));
+    onLangChange(() => this.invalidate('grid', 'tool')); // scale bar and tool overlays carry text
   }
 
   // --- coordinates -----------------------------------------------------------
@@ -294,7 +296,7 @@ export class Canvas {
     for (const m of [1, 2, 5, 10]) if (m * pow <= disp) nice = m * pow;
     const px = (nice * scale) / worldPerPx;
     el.querySelector('.bar').style.width = `${Math.round(px)}px`;
-    el.querySelector('.lbl').textContent = formatLength(nice * scale, meta);
+    el.querySelector('.lbl').textContent = fmtLength(nice * scale, meta);
   }
 
   updateCursor() {

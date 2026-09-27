@@ -202,7 +202,8 @@ encodePngAsync(img) -> Promise<Uint8Array>   // CompressionStream('deflate'); th
 
 // text-export.js
 toText(mapDoc, { format: 'markdown'|'plain', nearest: 3 }) -> string
-formatLength(worldUnits, meta) -> "1.2 km", formatArea(worldUnits², meta) -> "3.4 km²"
+formatLength(worldUnits, meta, opts?) -> "1.2 km", formatArea(worldUnits², meta, opts?) -> "3.4 km²"
+   // opts = { locale: 'ru', units: { km: 'км', m: 'м' } } -> "1,2 км" (UI only; default stays English)
 ```
 
 ## UI architecture (`src/app`)
@@ -243,7 +244,17 @@ only colours map content.
   toggles + Export menu, undo/redo, zoom pill, cursor read-out, tool HUD),
   `floating-panel.js` (dockable, draggable panel cards), `menu.js` (menus and
   popovers), `layer-meta.js` (layer labels, colours, types for new features).
-* `settings.js` — UI theme and the Settings dialog; `io.js` — save via the
+* `i18n/` — UI localisation (Russian and English): `index.js` (`t`, `plural`,
+  `label` for data values, `setLang` / `onLangChange`, `applyI18n` for
+  `data-i18n*` attributes in `index.html`, `formatNumber`), `format.js`
+  (localised lengths / areas / units on top of core `formatLength` /
+  `formatArea`, which take an optional `{ locale, units }` and default to
+  English for the CLI), dictionaries `ru.js` / `en.js`. The language is a UI
+  pref (`localStorage` `ilumap.lang`, default English, applied before first paint by the inline
+  script in `index.html`); switching re-renders every mounted component
+  through `onLangChange` without touching the document, selection, undo
+  history, panels or tool. See docs/DESIGN.md → Localisation.
+* `settings.js` — UI theme, language and the Settings dialog; `io.js` — save via the
   File System Access API (download fallback), exports (JSON / SVG / PNG /
   masks / text), background image loading, POI placement.
 
@@ -285,7 +296,7 @@ Interaction conventions: `V` select, `H` pan / hold `Space` / middle mouse,
 `Enter` (or double-click / right-click) finish, `C` close path while drawing,
 `Backspace` remove the last point while drawing, `Esc` cancel, `Delete`
 remove, `Ctrl+Z/Y` undo/redo, `Ctrl+S` save, `Ctrl+Shift+S` save as, `Ctrl+O`
-open a file as a local map, `Ctrl+B` sidebar, `Ctrl+K` search maps,
+open a file as a local map, `Ctrl+B` sidebar, `Ctrl+K` search maps, `Ctrl+,` settings,
 double-click vertex to delete, `Alt`+click on segment to insert a vertex,
 wheel to zoom, `F` fit, `G` grid, `/` search POIs, `?` help, `[` / `]`
 panels, `F2` rename, arrows nudge the selection. Grid snapping follows the

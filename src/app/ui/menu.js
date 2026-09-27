@@ -86,7 +86,7 @@ function show(el, opts) {
 }
 
 /**
- * Show a menu. items: [{ label, icon?, kbd?, onClick, danger?, disabled?, hint? } | '-' (separator) | { heading }]
+ * Show a menu. items: [{ label, icon?, kbd?, onClick, danger?, disabled?, hint?, checked? (radio item), lang? } | '-' (separator) | { heading }]
  * opts: { anchor?, x?, y?, align?: 'start'|'end'|'center', side?: 'bottom'|'top'|'right'|'left' }
  */
 export function openMenu(items, opts = {}) {
@@ -94,10 +94,13 @@ export function openMenu(items, opts = {}) {
   for (const it of items) {
     if (it === '-') { el.append(h('div', { class: 'menu-sep', role: 'separator' })); continue; }
     if (it.heading) { el.append(h('div', { class: 'menu-heading' }, it.heading)); continue; }
+    const radio = typeof it.checked === 'boolean';
+    const ico = radio ? (it.checked ? 'check' : null) : it.icon;
     el.append(h('button', {
-      type: 'button', role: 'menuitem', class: `menu-item${it.danger ? ' danger' : ''}`, disabled: !!it.disabled, title: it.hint || null,
+      type: 'button', role: radio ? 'menuitemradio' : 'menuitem', 'aria-checked': radio ? String(it.checked) : null,
+      class: `menu-item${it.danger ? ' danger' : ''}${it.checked ? ' checked' : ''}`, disabled: !!it.disabled, title: it.hint || null, lang: it.lang || null,
       onclick: () => { closeMenu(); it.onClick?.(); },
-    }, it.icon ? icon(it.icon) : h('span', { class: 'ico ico-blank' }), h('span', { class: 'menu-label' }, it.label), it.kbd ? h('kbd', {}, it.kbd) : null));
+    }, ico ? icon(ico) : h('span', { class: 'ico ico-blank' }), h('span', { class: 'menu-label' }, it.label), it.kbd ? h('kbd', {}, it.kbd) : null));
   }
   const shown = show(el, opts);
   if (shown && opts.focus !== false) shown.querySelector('.menu-item:not(:disabled)')?.focus({ preventScroll: true });

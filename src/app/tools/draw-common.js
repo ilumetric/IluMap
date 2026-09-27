@@ -9,9 +9,10 @@ import { LAYER_KIND, LAYER_ID_PREFIX, DEFAULT_WALL } from '../../core/schema.js'
 import { nextId } from '../../core/model.js';
 import { toView } from '../../core/render-svg.js';
 import { linearPath, catmullRomToPath, polylineLength, polygonArea } from '../../core/geometry.js';
-import { formatLength, formatArea } from '../../core/text-export.js';
+import { t, plural } from '../i18n/index.js';
+import { fmtLength, fmtArea } from '../i18n/format.js';
 import { toast } from '../dom.js';
-import { newTypeFor } from '../ui/layer-meta.js';
+import { newTypeFor, layerLabel } from '../ui/layer-meta.js';
 
 /** Pick the layer a tool draws into, switching the active layer when needed. */
 export function targetLayer(kind, wall) {
@@ -22,7 +23,7 @@ export function targetLayer(kind, wall) {
   return kind === 'line' ? (store.prefs.lastLineLayer || 'roads') : (store.prefs.lastPolygonLayer || 'land');
 }
 
-export function createDrawTool({ id, label, key, icon, kind, wall = false }) {
+export function createDrawTool({ id, labelKey, key, icon, kind, wall = false }) {
   let pts = [];
   let hover = null;
 
@@ -31,7 +32,7 @@ export function createDrawTool({ id, label, key, icon, kind, wall = false }) {
 
   function finish(canvas, { close = false } = {}) {
     if (pts.length < minPts) {
-      if (pts.length) toast(`Need at least ${minPts} points`, { type: 'warn' });
+      if (pts.length) toast(plural('toast.needPoints', minPts), { type: 'warn' });
       return;
     }
     const l = layer();
@@ -54,12 +55,11 @@ export function createDrawTool({ id, label, key, icon, kind, wall = false }) {
   }
 
   return {
-    id, label, key, icon,
+    id, key, icon,
+    get label() { return t(labelKey); },
     get drawing() { return pts.length > 0; },
     hint() {
-      const l = layer();
-      const base = `Drawing into “${l}”. Click to add points · Enter or double-click to finish`;
-      return `${base}${kind === 'line' ? ' · C to close' : ''} · Backspace removes the last point · Shift toggles snapping · Esc cancels`;
+      return t(kind === 'line' ? 'tools.drawLineHint' : 'tools.drawPolygonHint', { layer: layerLabel(layer()) });
     },
     activate() {
       const l = layer();
@@ -98,8 +98,8 @@ export function createDrawTool({ id, label, key, icon, kind, wall = false }) {
     status() {
       if (!pts.length) return '';
       const all = hover ? [...pts, hover] : pts;
-      if (kind === 'polygon' && all.length >= 3) return `${pts.length} pts · area ${formatArea(polygonArea(all), store.doc.meta)}`;
-      return `${pts.length} pts · ${formatLength(polylineLength(all), store.doc.meta)}`;
+      if (kind === 'polygon' && all.length >= 3) return t('tools.drawStatusArea', { points: plural('count.points', pts.length), area: fmtArea(polygonArea(all), store.doc.meta) });
+      return t('tools.drawStatusLength', { points: plural('count.points', pts.length), length: fmtLength(polylineLength(all), store.doc.meta) });
     },
     overlay(canvas) {
       if (!pts.length) return '';

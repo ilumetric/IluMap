@@ -2,6 +2,7 @@
 // UI icons live in ui/icons.js.
 
 import { icon } from './ui/icons.js';
+import { t } from './i18n/index.js';
 
 export function h(tag, attrs = {}, ...children) {
   const el = tag.startsWith('svg:')
@@ -72,7 +73,7 @@ export function toast(message, { type = 'info', timeout = 3500, actions = [] } =
   for (const a of actions) {
     el.append(h('button', { class: 'btn btn-small', onclick: () => { close(); a.onClick(); } }, a.label));
   }
-  el.append(h('button', { class: 'toast-x', title: 'Dismiss', 'aria-label': 'Dismiss', onclick: close }, icon('x')));
+  el.append(h('button', { class: 'toast-x', title: t('toast.dismiss'), 'aria-label': t('toast.dismiss'), onclick: close }, icon('x')));
   host.append(el);
   if (timeout > 0) setTimeout(close, timeout);
   return close;
@@ -84,13 +85,14 @@ export function toast(message, { type = 'info', timeout = 3500, actions = [] } =
  * Modal dialog. `body` is placed before the fields, `footer` after them.
  * fields: [{ name, label, type: 'text'|'number'|'select'|'checkbox'|'textarea'|'color', value, options, step, min, max, hint }]
  * Resolves to an object of values, or null when cancelled.
+ * onOpen({ form, inputs, close }) runs once the dialog is in the DOM (close(null) cancels it).
  */
-export function openDialog({ title, message, body, footer, fields = [], okText = 'OK', cancelText = 'Cancel', danger = false, wide = false }) {
+export function openDialog({ title, message, body, footer, fields = [], okText = t('dialogs.ok'), cancelText = t('dialogs.cancel'), danger = false, wide = false, onOpen = null }) {
   return new Promise((resolve) => {
     const host = document.getElementById('dialogs');
     const form = h('form', { class: `dialog${wide ? ' dialog-wide' : ''}`, method: 'dialog' });
     form.append(h('div', { class: 'dialog-head' }, h('h2', {}, title || ''),
-      h('button', { type: 'button', class: 'icon-btn', title: 'Close', 'aria-label': 'Close', onclick: () => done(null) }, icon('x'))));
+      h('button', { type: 'button', class: 'icon-btn', title: t('dialogs.close'), 'aria-label': t('dialogs.close'), onclick: () => done(null) }, icon('x'))));
     if (message) form.append(h('p', { class: 'dialog-msg' }, message));
     if (body) form.append(body);
     const inputs = {};
@@ -142,12 +144,13 @@ export function openDialog({ title, message, body, footer, fields = [], okText =
       done(out);
     });
     host.append(backdrop);
+    onOpen?.({ form, inputs, close: done });
     const first = form.querySelector('input, select, textarea') || ok;
     setTimeout(() => { first.focus(); if (first.select && first.type !== 'checkbox') first.select(); }, 0);
   });
 }
 
-export async function confirmDialog(message, { title = 'Are you sure?', okText = 'OK', danger = false } = {}) {
+export async function confirmDialog(message, { title = t('dialogs.confirmTitle'), okText = t('dialogs.ok'), danger = false } = {}) {
   return (await openDialog({ title, message, okText, danger })) !== null;
 }
 

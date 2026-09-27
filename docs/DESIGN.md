@@ -88,8 +88,13 @@ they live in `core/render-svg.js` because exports need them.
   one line, ellipsis, hover `--row-hover`, active `--row-active`, a link icon
   when the map is linked to a file, a "⋯" button (visible on hover / active)
   and a right-click menu: Rename, Duplicate, Export JSON, Delete (confirm).
-  Settings is pinned to the bottom. `Ctrl+B` collapses it; a round FAB in the
-  stage's top-left corner reopens it.
+  Settings is pinned to the bottom, with the language switcher next to it: a
+  28px outlined pill (globe icon + `RU` / `EN`, 11.5px semibold) that opens a
+  menu headed "Language" listing Русский, then English, with a teal check on
+  the active one. `Ctrl+B` collapses the sidebar; a round FAB in the stage's
+  top-left corner reopens it, and while it is collapsed a Settings gear
+  appears at the bottom of the right view stack (Settings has the language
+  select too).
 * **Stage** (`#stage`): the SVG canvas fills it. The CSS dot grid (1px dots,
   20–40px spacing, `--dot-size/x/y` updated by `canvas.js`) follows pan and
   zoom. The map's ocean is drawn only inside `view.bounds`; the bounds edge is
@@ -109,7 +114,8 @@ they live in `core/render-svg.js` because exports need them.
     layer they will draw into (`layer-meta.js` → `layerColor`, adjusted for
     contrast by `chromeTint`).
   * right **view stack**: grid, labels, background image (popover: opacity,
-    calibrate, fit, replace, remove), fit, keyboard shortcuts.
+    calibrate, fit, replace, remove), fit, keyboard shortcuts (and Settings
+    while the sidebar is collapsed).
   * bottom-centre **layer dock**: power toggle (visibility of the active
     layer; teal when visible), the layer name + "n features · new: type",
     one 28px chip per layer (2-letter abbreviation, 2px ring in the layer
@@ -177,6 +183,41 @@ yellow POIs. `blueprint` (navy) and `parchment` (light paper) stay available;
 the demo map uses `graphite` too. Presets must all define the same keys (a unit
 test checks it).
 
+## Localisation
+
+The UI speaks Russian and English. Wherever languages are listed, Russian is
+first (Русский, English). The language is a UI pref (`ilumap.lang`, default English), switched
+from the sidebar pill or Settings, and applies immediately.
+
+* **Where strings live:** `src/app/i18n/ru.js` and `en.js`, flat objects with
+  dotted keys grouped by area — `sidebar.*`, `titlePill.*`, `panels.*`,
+  `points.*`, `inspector.*`, `links.*`, `map.*`, `background.*`, `style.*`,
+  `dock.*`, `toolbar.*`, `tools.*`, `history.*`, `zoom.*`, `readout.*`,
+  `export.*`, `dialogs.*`, `settings.*`, `shortcuts.*`, `toast.*`, `app.*`
+  (static markup), `count.*` (plural forms), `units.*`, `compass.*`, and the
+  data labels below. Both files have the same keys (a test checks it).
+* **Code:** `t('key', { name })` for text, `plural('count.features', n)` for
+  counts (Intl.PluralRules; Russian one / few / many), `label(group, value)`
+  for data values, `fmtLength` / `fmtArea` / `unitLabel` (`i18n/format.js`)
+  for distances and units («8,5 км», «12,4 км²»). Titles, `aria-label`s and
+  placeholders are translated too; keyboard names (`Ctrl+S`, `Esc`) are not.
+  Static markup in `index.html` uses `data-i18n`, `data-i18n-html`,
+  `data-i18n-title`, `data-i18n-placeholder`, `data-i18n-aria-label`.
+* **Re-render, don't reload:** every component that renders text subscribes
+  with `onLangChange` and re-renders from state; nothing else changes.
+* **Data is never translated:** ids, `type` / `status` values, layer keys and
+  everything written into map.json stay English (default names such as
+  "New POI" or "Untitled" included). Only their display labels are localised
+  — `layers.*` (Суша, Дороги…), `layers.abbr.*` (dock chips: Сш Вд Бр Рк Дг Жд
+  Ст Зн Тч), `status.*` (идея / утверждено / в слайсе / вырезано),
+  `poiTypes.*`, `zoneTypes.*`, `lineTypes.*`, `wallTypes.*`, `linkTypes.*`,
+  `towerModes.*`, `patterns.*`, `poiIcons.*`, `presets.*`. Custom types
+  without a label show their raw value. The CLI and the text export for
+  agents stay English.
+* **Length:** Russian runs ~20–30 % longer. Keep labels short, let text in
+  pills, dock and list rows ellipsize (with the full text in `title`), and
+  check both languages at 1600 and 1280 px.
+
 ## Checklist for new UI
 
 1. Colours come from tokens; test both themes (Settings → Interface theme).
@@ -186,3 +227,6 @@ test checks it).
 4. Buttons have `title` + `aria-label`; toggles `aria-pressed`.
 5. UI state (open panels, toggles) goes to `store.prefs` (localStorage);
    anything that belongs to the map goes through `change()` into map.json.
+6. Every visible string, `title`, `aria-label` and placeholder goes through
+   `t()` with keys in both `ru.js` and `en.js`, and the component re-renders
+   on `onLangChange` (`test/i18n.test.js` flags obvious English literals).

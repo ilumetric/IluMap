@@ -6,6 +6,7 @@
 import { store, savePrefs, emit } from '../state.js';
 import { h } from '../dom.js';
 import { icon } from './icons.js';
+import { t, onLangChange } from '../i18n/index.js';
 
 const panels = new Map();
 let floatSeq = 10;
@@ -17,23 +18,37 @@ function prefsOf(id) {
 }
 
 /**
- * createPanel({ id, title, icon, dock: 'left'|'right', width, actions?: Element[] })
- * -> { id, el, body, setTitle, open, close, toggle, isOpen }
+ * createPanel({ id, titleKey, icon, dock: 'left'|'right', width, actions?: Element[] })
+ * -> { id, el, body, setTitle(key), open, close, toggle, isOpen }
+ * The title is an i18n key; it is re-applied when the UI language changes.
  */
-export function createPanel({ id, title, icon: iconName, dock = 'right', width = 300, actions = [] }) {
+export function createPanel({ id, titleKey, icon: iconName, dock = 'right', width = 300, actions = [] }) {
   const stage = document.getElementById('stage');
   const column = document.getElementById(dock === 'left' ? 'dock-left' : 'dock-right');
-  const titleEl = h('span', { class: 'fp-title' }, title);
-  const closeBtn = h('button', { type: 'button', class: 'icon-btn fp-close', title: 'Close panel', 'aria-label': `Close ${title}` }, icon('x'));
-  const head = h('div', { class: 'fp-head', title: 'Drag to move · double-click to dock' },
+  let key = titleKey;
+  const titleEl = h('span', { class: 'fp-title' });
+  const closeBtn = h('button', { type: 'button', class: 'icon-btn fp-close' }, icon('x'));
+  const head = h('div', { class: 'fp-head' },
     iconName ? icon(iconName) : null, titleEl, h('span', { class: 'fp-actions' }, ...actions), closeBtn);
   const body = h('div', { class: 'fp-body' });
-  const el = h('section', { class: 'fpanel chrome', id: `panel-${id}`, 'aria-label': title, style: { width: `${width}px` } }, head, body);
+  const el = h('section', { class: 'fpanel chrome', id: `panel-${id}`, style: { width: `${width}px` } }, head, body);
   column.append(el);
+
+  function relabel() {
+    const title = t(key);
+    titleEl.textContent = title;
+    titleEl.title = title;
+    el.setAttribute('aria-label', title);
+    closeBtn.title = t('panels.close');
+    closeBtn.setAttribute('aria-label', t('panels.closeNamed', { panel: title }));
+    head.title = t('panels.dragHint');
+  }
+  onLangChange(relabel);
+  relabel();
 
   const api = {
     id, el, body, head,
-    setTitle(t) { titleEl.textContent = t; },
+    setTitle(k) { key = k; relabel(); },
     isOpen: () => prefsOf(id).open,
     open() { set(true); },
     close() { set(false); },

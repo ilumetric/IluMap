@@ -3,9 +3,11 @@
 import { store, on, change, select, emit, selectedItems } from '../state.js';
 import { POI_STATUSES, LAYER_KIND, LAYERS, TOWER_MODES, DEFAULT_WALL } from '../../core/schema.js';
 import { resolveStyle, typeGroupForLayer, poiStyle } from '../../core/styles.js';
-import { findById, renameId, removeById, zoneOf, isLand, allIds, slugify } from '../../core/model.js';
+import { findById, renameId, removeById, zoneOf, isLand, allIds, slugify, isValidId } from '../../core/model.js';
 import { polylineLength, polygonArea, centroid, featureGeometry, wallLayout } from '../../core/geometry.js';
-import { formatLength, formatArea } from '../../core/text-export.js';
+import { t, plural, label, onLangChange } from '../i18n/index.js';
+import { fmtLength, fmtArea, unitLabel } from '../i18n/format.js';
+import { layerLabel, typeLabel } from '../ui/layer-meta.js';
 import { h, clear, toast, renderKeepingFocus } from '../dom.js';
 import { icon } from '../ui/icons.js';
 import { renderLinks } from './links.js';
@@ -64,31 +66,44 @@ function area(name, value, onCommit, rows = 3) {
 function colorOverride(name, value, fallback, onCommit) {
   const input = h('input', { type: 'color', name, value: value || fallback || '#888888', class: value ? '' : 'unset' });
   input.addEventListener('change', () => onCommit(input.value));
-  const clearBtn = h('button', { class: 'icon-btn', title: 'Clear override (use the type colour)', disabled: !value, onclick: () => onCommit(null) }, '×');
-  return h('span', { class: 'color-override' }, input, h('span', { class: 'muted small' }, value || 'type colour'), clearBtn);
+  const clearBtn = h('button', { class: 'icon-btn', title: t('inspector.clearColour'), 'aria-label': t('inspector.clearColour'), disabled: !value, onclick: () => onCommit(null) }, '×');
+  return h('span', { class: 'color-override' }, input, h('span', { class: 'muted small' }, value || t('inspector.typeColour')), clearBtn);
 }
 
-function datalist(id, values) {
-  return h('datalist', { id }, values.map((v) => h('option', { value: v })));
+/** Suggestions for a free-text field; `labelOf` shows a localised name next to the raw value. */
+function datalist(id, values, labelOf = null) {
+  return h('datalist', { id }, values.map((v) => {
+    const l = labelOf ? labelOf(v) : null;
+    return h('option', { value: v }, l && l !== v ? l : null);
+  }));
 }
 
 function tagsInput(name, tags, onCommit) {
-  return text(name, (tags || []).join(', '), (v) => onCommit(v.split(',').map((t) => t.trim()).filter(Boolean)), { placeholder: 'comma, separated' });
+  return text(name, (tags || []).join(', '), (v) => onCommit(v.split(',').map((s) => s.trim()).filter(Boolean)), { placeholder: t('inspector.tagsPlaceholder') });
 }
 
 function idInput(id) {
   return text('id', id, (v) => {
     const nv = v.trim();
     if (nv === id) return;
+    const problem = idProblem(nv);
+    if (problem) { toast(problem, { type: 'error' }); emit('selection'); return; }
     try {
       change((doc) => renameId(doc, id, nv));
       select(nv);
-      toast(`Renamed ${id} → ${nv} (references updated)`, { type: 'ok' });
+      toast(t('toast.renamedId', { from: id, to: nv }), { type: 'ok' });
     } catch (e) {
       toast(e.message, { type: 'error' });
       emit('selection');
     }
-  }, { class: 'mono', pattern: '[a-z0-9_]+', title: 'Lowercase letters, digits and _ — unique in the file. Renaming updates links and zone references.' });
+  }, { class: 'mono', pattern: '[a-z0-9_]+', title: t('inspector.idTitle') });
+}
+
+/** Localised reason why an id cannot be used (the core throws English messages). */
+function idProblem(nv) {
+  if (!isValidId(nv)) return t('toast.idInvalid', { id: nv });
+  if (allIds(store.doc).has(nv)) return t('toast.idUsed', { id: nv });
+  return null;
 }
 
 function section(title, ...children) {
@@ -109,30 +124,32 @@ export function mountInspector(root, { canvas, mapSettings }) {
 
   function actions(hit) {
     return h('div', { class: 'insp-actions' },
-      h('button', { type: 'button', class: 'btn btn-small', onclick: () => centerOn(hit) }, icon('target'), 'Center'),
-      h('button', { class: 'btn btn-small btn-danger', onclick: () => change((doc) => removeById(doc, hit.item.id)) }, icon('trash'), 'Delete'));
+      h('button', { type: 'button', class: 'btn btn-small', onclick: () => centerOn(hit) }, icon('target'), t('inspector.center')),
+      h('button', { class: 'btn btn-small btn-danger', onclick: () => change((doc) => removeById(doc, hit.item.id)) }, icon('trash'), t('inspector.delete')));
   }
 
   function renderNone() {
     const doc = store.doc;
     const nf = LAYERS.reduce((n, l) => n + doc.layers[l].length, 0);
     body.append(
-      h('div', { class: 'insp-head' }, h('span', { class: 'insp-kind' }, 'Map'), h('span', { class: 'insp-title' }, doc.meta.name || 'Untitled')),
+      h('div', { class: 'insp-head' }, h('span', { class: 'insp-kind' }, t('inspector.kindMap')), h('span', { class: 'insp-title' }, doc.meta.name || t('common.untitled'))),
       h('div', { class: 'insp-empty' },
-        h('p', { class: 'muted small' }, `${doc.pois.length} POIs · ${nf} features · ${doc.links.length} links. Nothing selected — click a feature or POI (Shift adds, drag on empty space box-selects). The map's own settings are below.`)));
+        h('p', { class: 'muted small' }, t('inspector.nothingSelected', {
+          counts: [plural('count.pois', doc.pois.length), plural('count.features', nf), plural('count.links', doc.links.length)].join(' · '),
+        }))));
   }
 
   function renderMulti(items) {
-    body.append(h('div', { class: 'insp-head' }, h('span', { class: 'insp-kind' }, 'Selection'), h('span', { class: 'insp-title' }, `${items.length} items`)));
+    body.append(h('div', { class: 'insp-head' }, h('span', { class: 'insp-kind' }, t('inspector.kindSelection')), h('span', { class: 'insp-title' }, plural('count.items', items.length))));
     const ul = h('ul', { class: 'multi-list' });
     for (const { id, hit } of items) {
       ul.append(h('li', {},
-        h('span', { class: 'tag' }, hit.kind === 'poi' ? 'POI' : hit.layer),
+        h('span', { class: 'tag' }, hit.kind === 'poi' ? t('inspector.kindPoi') : layerLabel(hit.layer)),
         h('button', { class: 'link-target', onclick: () => select(id) }, hit.item.name || id, h('small', {}, ` ${id}`)),
-        h('button', { class: 'icon-btn', title: 'Remove from selection', onclick: () => select(id, { toggle: true }) }, '×')));
+        h('button', { class: 'icon-btn', title: t('inspector.unselect'), 'aria-label': t('inspector.unselect'), onclick: () => select(id, { toggle: true }) }, '×')));
     }
     body.append(ul, h('div', { class: 'insp-actions' },
-      h('button', { class: 'btn btn-small btn-danger', onclick: () => change((doc) => { for (const { id } of items) removeById(doc, id); }) }, icon('trash'), `Delete ${items.length}`)));
+      h('button', { class: 'btn btn-small btn-danger', onclick: () => change((doc) => { for (const { id } of items) removeById(doc, id); }) }, icon('trash'), t('inspector.deleteN', { n: items.length }))));
   }
 
   function renderPoi(hit) {
@@ -146,34 +163,37 @@ export function mountInspector(root, { canvas, mapSettings }) {
     const onLand = p.placed === false ? null : isLand(doc, [p.x, p.y]);
     const types = [...new Set([...Object.keys(rs.poiTypes), ...doc.pois.map((x) => x.type)])];
 
-    body.append(h('div', { class: 'insp-head' }, h('span', { class: 'insp-kind', style: { background: ps.color } }, 'POI'), h('span', { class: 'insp-title' }, p.name)));
-    body.append(datalist('dl-poi-types', types));
-    const zoneHint = p.placed === false ? 'not placed yet' : `${auto ? `inside ${zones.find((z) => z.id === auto)?.name || auto}` : 'outside all zones'} · ${onLand ? 'on land' : 'in water'}`;
+    body.append(h('div', { class: 'insp-head' }, h('span', { class: 'insp-kind', style: { background: ps.color } }, t('inspector.kindPoi')), h('span', { class: 'insp-title' }, p.name)));
+    body.append(datalist('dl-poi-types', types, (v) => label('poiTypes', v)));
+    const zoneHint = p.placed === false
+      ? t('inspector.notPlaced')
+      : `${auto ? t('inspector.insideZone', { zone: zones.find((z) => z.id === auto)?.name || auto }) : t('inspector.outsideZones')} · ${onLand ? t('inspector.onLand') : t('inspector.inWater')}`;
+    const typeHint = label('poiTypes', p.type) !== p.type ? label('poiTypes', p.type) : null;
     body.append(
-      section('Identity',
-        field('Id', idInput(id)),
-        field('Name', text('name', p.name, (v) => edit(id, (it) => { it.name = v || it.id; }))),
+      section(t('inspector.identity'),
+        field(t('inspector.id'), idInput(id)),
+        field(t('inspector.name'), text('name', p.name, (v) => edit(id, (it) => { it.name = v || it.id; }))),
         h('div', { class: 'row2' },
-          field('Type', text('type', p.type, (v) => { store.prefs.poiType = v || 'poi'; edit(id, (it) => { it.type = v || 'poi'; }); }, { list: 'dl-poi-types' })),
-          field('Status', sel('status', p.status || 'idea', POI_STATUSES, (v) => edit(id, (it) => { it.status = v; })))),
+          field(t('inspector.type'), text('type', p.type, (v) => { store.prefs.poiType = v || 'poi'; edit(id, (it) => { it.type = v || 'poi'; }); }, { list: 'dl-poi-types' }), typeHint),
+          field(t('inspector.status'), sel('status', p.status || 'idea', POI_STATUSES.map((s) => [s, label('status', s)]), (v) => edit(id, (it) => { it.status = v; })))),
         h('div', { class: 'row-zone' },
-          field('Zone', sel('zone', p.zone || '', [['', '(none)'], ...zones.map((z) => [z.id, z.name ? `${z.name} (${z.id})` : z.id])],
+          field(t('inspector.zone'), sel('zone', p.zone || '', [['', t('inspector.noZone')], ...zones.map((z) => [z.id, z.name ? `${z.name} (${z.id})` : z.id])],
             (v) => edit(id, (it) => { if (v) it.zone = v; else delete it.zone; })), zoneHint),
           h('button', {
-            class: 'btn btn-small', title: 'Set the zone from the position (point in polygon)', disabled: p.placed === false,
+            class: 'btn btn-small', title: t('inspector.autoZoneTitle'), disabled: p.placed === false,
             onclick: () => edit(id, (it) => { if (auto) it.zone = auto; else delete it.zone; }),
-          }, 'Auto'))),
-      section('Position',
+          }, t('inspector.autoZone')))),
+      section(t('inspector.position'),
         h('div', { class: 'row2' },
-          field(`X (${doc.meta.units})`, num('x', p.x, (v) => v != null && edit(id, (it) => { it.x = v; const z = zoneOf(store.doc, [it.x, it.y]); if (z) it.zone = z; }))),
-          field(`Y (${doc.meta.units})`, num('y', p.y, (v) => v != null && edit(id, (it) => { it.y = v; const z = zoneOf(store.doc, [it.x, it.y]); if (z) it.zone = z; })))),
-        check('placed', p.placed !== false, 'Placed on the map (unchecked = “Unplaced” list)', (v) => edit(id, (it) => { if (v) delete it.placed; else it.placed = false; }))),
-      section('Details',
-        field('Tags', tagsInput('tags', p.tags, (v) => edit(id, (it) => { if (v.length) it.tags = v; else delete it.tags; }))),
-        field('Notes', area('notes', p.notes, (v) => edit(id, (it) => { if (v) it.notes = v; else delete it.notes; }))),
-        field('Anchor', text('anchor', p.anchor, (v) => edit(id, (it) => { if (v.trim()) it.anchor = v.trim(); else delete it.anchor; }), { placeholder: 'places.md#old-mine' })),
-        field('Colour', colorOverride('color', p.color, ps.color, (v) => edit(id, (it) => { if (v) it.color = v; else delete it.color; })))),
-      section('Links', renderLinks(id)),
+          field(`X (${unitLabel(doc.meta.units)})`, num('x', p.x, (v) => v != null && edit(id, (it) => { it.x = v; const z = zoneOf(store.doc, [it.x, it.y]); if (z) it.zone = z; }))),
+          field(`Y (${unitLabel(doc.meta.units)})`, num('y', p.y, (v) => v != null && edit(id, (it) => { it.y = v; const z = zoneOf(store.doc, [it.x, it.y]); if (z) it.zone = z; })))),
+        check('placed', p.placed !== false, t('inspector.placed'), (v) => edit(id, (it) => { if (v) delete it.placed; else it.placed = false; }))),
+      section(t('inspector.details'),
+        field(t('inspector.tags'), tagsInput('tags', p.tags, (v) => edit(id, (it) => { if (v.length) it.tags = v; else delete it.tags; }))),
+        field(t('inspector.notes'), area('notes', p.notes, (v) => edit(id, (it) => { if (v) it.notes = v; else delete it.notes; }))),
+        field(t('inspector.anchor'), text('anchor', p.anchor, (v) => edit(id, (it) => { if (v.trim()) it.anchor = v.trim(); else delete it.anchor; }), { placeholder: t('inspector.anchorPlaceholder') })),
+        field(t('inspector.colour'), colorOverride('color', p.color, ps.color, (v) => edit(id, (it) => { if (v) it.color = v; else delete it.color; })))),
+      section(t('inspector.links'), renderLinks(id)),
       actions(hit),
     );
   }
@@ -191,22 +211,23 @@ export function mountInspector(root, { canvas, mapSettings }) {
     const geo = featureGeometry(f);
     const meta = doc.meta;
     const stats = kind === 'polygon'
-      ? `${f.points.length} points · area ${formatArea(polygonArea(geo), meta)} · perimeter ${formatLength(polylineLength(geo, true), meta)}`
-      : `${f.points.length} points · length ${formatLength(polylineLength(geo, closed), meta)}`;
+      ? t('inspector.statsPolygon', { points: plural('count.points', f.points.length), area: fmtArea(polygonArea(geo), meta), perimeter: fmtLength(polylineLength(geo, true), meta) })
+      : t('inspector.statsLine', { points: plural('count.points', f.points.length), length: fmtLength(polylineLength(geo, closed), meta) });
     const sameKind = LAYERS.filter((l) => LAYER_KIND[l] === kind);
 
-    body.append(h('div', { class: 'insp-head' }, h('span', { class: 'insp-kind' }, layer), h('span', { class: 'insp-title' }, f.name || f.id)));
-    body.append(datalist('dl-feature-types', types));
+    body.append(h('div', { class: 'insp-head' }, h('span', { class: 'insp-kind' }, layerLabel(layer)), h('span', { class: 'insp-title' }, f.name || f.id)));
+    body.append(datalist('dl-feature-types', types, (v) => label(group, v)));
+    const typeHint = f.type && label(group, f.type) !== f.type ? label(group, f.type) : null;
     body.append(
-      section('Identity',
-        field('Id', idInput(id)),
-        field('Name', text('name', f.name, (v) => edit(id, (it) => { if (v.trim()) it.name = v; else delete it.name; }), { placeholder: 'label on the map' })),
+      section(t('inspector.identity'),
+        field(t('inspector.id'), idInput(id)),
+        field(t('inspector.name'), text('name', f.name, (v) => edit(id, (it) => { if (v.trim()) it.name = v; else delete it.name; }), { placeholder: t('inspector.namePlaceholder') })),
         h('div', { class: 'row2' },
-          field('Type', text('type', f.type, (v) => edit(id, (it) => {
+          field(t('inspector.type'), text('type', f.type, (v) => edit(id, (it) => {
             if (v.trim()) it.type = v.trim(); else delete it.type;
             if (layer === 'zones' && v.trim()) store.prefs.lastZoneType = v.trim();
-          }), { list: 'dl-feature-types', placeholder: group })),
-          field('Layer', sel('layer', layer, sameKind, (v) => {
+          }), { list: 'dl-feature-types', placeholder: t('inspector.typePlaceholder') }), typeHint),
+          field(t('inspector.layer'), sel('layer', layer, sameKind.map((l) => [l, layerLabel(l)]), (v) => {
             if (v === layer) return;
             change((d) => {
               const arr = d.layers[layer];
@@ -218,31 +239,31 @@ export function mountInspector(root, { canvas, mapSettings }) {
               d.layers[v].push(it);
             });
           })))),
-      section('Shape',
+      section(t('inspector.shape'),
         h('div', { class: 'checks' },
-          check('smooth', f.smooth, 'Smooth (Catmull-Rom)', (v) => edit(id, (it) => { if (v) it.smooth = true; else delete it.smooth; })),
-          kind === 'line' ? check('closed', f.closed, 'Closed', (v) => edit(id, (it) => { if (v) it.closed = true; else delete it.closed; })) : null,
-          check('hidden', f.hidden, 'Hidden', (v) => edit(id, (it) => { if (v) it.hidden = true; else delete it.hidden; }))),
+          check('smooth', f.smooth, t('inspector.smooth'), (v) => edit(id, (it) => { if (v) it.smooth = true; else delete it.smooth; })),
+          kind === 'line' ? check('closed', f.closed, t('inspector.closed'), (v) => edit(id, (it) => { if (v) it.closed = true; else delete it.closed; })) : null,
+          check('hidden', f.hidden, t('inspector.hidden'), (v) => edit(id, (it) => { if (v) it.hidden = true; else delete it.hidden; }))),
         kind === 'line' || layer === 'walls'
-          ? field(`Width (${meta.units}, world)`, num('width', f.width, (v) => edit(id, (it) => { if (v > 0) it.width = v; else delete it.width; }), { min: 0, placeholder: 'style width' }),
-            f.width ? `= ${formatLength(f.width, meta)} · used for masks and to-scale rendering` : 'empty = style width in screen pixels')
+          ? field(t('inspector.width', { units: unitLabel(meta.units) }), num('width', f.width, (v) => edit(id, (it) => { if (v > 0) it.width = v; else delete it.width; }), { min: 0, placeholder: t('inspector.widthPlaceholder') }),
+            f.width ? t('inspector.widthHint', { length: fmtLength(f.width, meta) }) : t('inspector.widthEmptyHint'))
           : null,
-        field('Colour', colorOverride('color', f.color, layer === 'zones' ? rs.zoneTypes[f.type]?.fill : (rs.layers[layer]?.stroke || rs.layers[layer]?.fill), (v) => edit(id, (it) => { if (v) it.color = v; else delete it.color; }))),
+        field(t('inspector.colour'), colorOverride('color', f.color, layer === 'zones' ? rs.zoneTypes[f.type]?.fill : (rs.layers[layer]?.stroke || rs.layers[layer]?.fill), (v) => edit(id, (it) => { if (v) it.color = v; else delete it.color; }))),
         h('p', { class: 'muted small stats' }, stats)),
     );
 
     if (layer === 'walls') body.append(renderWall(f));
 
     body.append(
-      section('Details',
-        field('Tags', tagsInput('tags', f.tags, (v) => edit(id, (it) => { if (v.length) it.tags = v; else delete it.tags; }))),
-        field('Notes', area('notes', f.notes, (v) => edit(id, (it) => { if (v) it.notes = v; else delete it.notes; })))),
-      section('Points',
-        field(`One “x, y” per line (${meta.units})`, area('points', f.points.map((p) => `${fmtN(p[0])}, ${fmtN(p[1])}`).join('\n'), (v) => {
+      section(t('inspector.details'),
+        field(t('inspector.tags'), tagsInput('tags', f.tags, (v) => edit(id, (it) => { if (v.length) it.tags = v; else delete it.tags; }))),
+        field(t('inspector.notes'), area('notes', f.notes, (v) => edit(id, (it) => { if (v) it.notes = v; else delete it.notes; })))),
+      section(t('inspector.points'),
+        field(t('inspector.pointsField', { units: unitLabel(meta.units) }), area('points', f.points.map((p) => `${fmtN(p[0])}, ${fmtN(p[1])}`).join('\n'), (v) => {
           const pts = v.split('\n').map((l) => l.trim()).filter(Boolean).map((l) => l.split(/[\s,;]+/).map(Number));
-          if (pts.some((p) => p.length !== 2 || !p.every(Number.isFinite))) { toast('Each line must be “x, y”', { type: 'error' }); emit('selection'); return; }
+          if (pts.some((p) => p.length !== 2 || !p.every(Number.isFinite))) { toast(t('toast.pointsFormat'), { type: 'error' }); emit('selection'); return; }
           const min = kind === 'polygon' ? 3 : 2;
-          if (pts.length < min) { toast(`Needs at least ${min} points`, { type: 'error' }); emit('selection'); return; }
+          if (pts.length < min) { toast(plural('toast.needPoints', min), { type: 'error' }); emit('selection'); return; }
           edit(id, (it) => { it.points = pts; });
         }, Math.min(10, Math.max(3, f.points.length))))),
       actions(hit),
@@ -262,10 +283,12 @@ export function mountInspector(root, { canvas, mapSettings }) {
         text(`gate-id-${i}`, g.id, (v) => {
           const nv = v.trim();
           if (nv === g.id) return;
+          const problem = idProblem(nv);
+          if (problem) { toast(problem, { type: 'error' }); emit('selection'); return; }
           try { change((doc) => renameId(doc, g.id, nv)); } catch (e) { toast(e.message, { type: 'error' }); emit('selection'); }
-        }, { class: 'mono', title: 'Gate id (link endpoint)', placeholder: 'gate id' }),
-        text(`gate-name-${i}`, g.name, (v) => setWall((wl) => { if (v.trim()) wl.gates[i].name = v.trim(); else delete wl.gates[i].name; }), { placeholder: 'name' }),
-        sel(`gate-mode-${i}`, mode, [['at', 'at vertex #'], ['t', 'at fraction 0..1']], (v) => setWall((wl) => {
+        }, { class: 'mono', title: t('inspector.gateIdTitle'), placeholder: t('inspector.gateIdPlaceholder') }),
+        text(`gate-name-${i}`, g.name, (v) => setWall((wl) => { if (v.trim()) wl.gates[i].name = v.trim(); else delete wl.gates[i].name; }), { placeholder: t('inspector.gateNamePlaceholder') }),
+        sel(`gate-mode-${i}`, mode, [['at', t('inspector.gateAtVertex')], ['t', t('inspector.gateAtFraction')]], (v) => setWall((wl) => {
           const gg = wl.gates[i];
           if (v === 'at') { delete gg.t; gg.at = 0; } else {
             const s = lay.gates[i]?.s ?? 0;
@@ -279,24 +302,24 @@ export function mountInspector(root, { canvas, mapSettings }) {
           if (mode === 'at') gg.at = Math.max(0, Math.min(it.points.length - 1, Math.round(v)));
           else gg.t = Math.max(0, Math.min(1, v));
         }), mode === 'at' ? { min: 0, max: f.points.length - 1, step: 1 } : { min: 0, max: 1, step: 0.01 }),
-        h('button', { class: 'icon-btn danger', title: 'Remove gate (and its links)', onclick: () => change((doc) => removeById(doc, g.id)) }, icon('trash'))));
+        h('button', { class: 'icon-btn danger', title: t('inspector.removeGate'), 'aria-label': t('inspector.removeGate'), onclick: () => change((doc) => removeById(doc, g.id)) }, icon('trash'))));
     });
     const addGate = () => {
       const base = `gate_${id.replace(/^wall_/, '')}`;
       const gid = slugify(base, allIds(store.doc));
       setWall((wl) => { wl.gates = [...(wl.gates || []), { id: gid, name: 'Gate', at: 0 }]; });
     };
-    return section('Wall',
+    return section(t('inspector.wall'),
       h('div', { class: 'row2' },
-        field('Towers', sel('towers', w.towers || 'vertices', TOWER_MODES, (v) => setWall((wl) => { wl.towers = v; }))),
-        field(`Tower size (${meta.units})`, num('towerSize', w.towerSize, (v) => setWall((wl) => { if (v > 0) wl.towerSize = v; }), { min: 0 }))),
+        field(t('inspector.towers'), sel('towers', w.towers || 'vertices', TOWER_MODES.map((m) => [m, label('towerModes', m)]), (v) => setWall((wl) => { wl.towers = v; }))),
+        field(t('inspector.towerSize', { units: unitLabel(meta.units) }), num('towerSize', w.towerSize, (v) => setWall((wl) => { if (v > 0) wl.towerSize = v; }), { min: 0 }))),
       (w.towers || 'vertices') === 'auto'
-        ? field(`Tower spacing (${meta.units})`, num('towerSpacing', w.towerSpacing, (v) => setWall((wl) => { if (v > 0) wl.towerSpacing = v; }), { min: 0 }), w.towerSpacing ? `= ${formatLength(w.towerSpacing, meta)}` : '')
+        ? field(t('inspector.towerSpacing', { units: unitLabel(meta.units) }), num('towerSpacing', w.towerSpacing, (v) => setWall((wl) => { if (v > 0) wl.towerSpacing = v; }), { min: 0 }), w.towerSpacing ? `= ${fmtLength(w.towerSpacing, meta)}` : '')
         : null,
-      h('p', { class: 'muted small' }, `${lay.towers.length} towers · ${formatLength(lay.length, meta)} of wall`),
-      h('div', { class: 'gates-head muted small' }, h('span', {}, 'Gate id'), h('span', {}, 'Name'), h('span', {}, 'Position'), h('span', {})),
+      h('p', { class: 'muted small' }, t('inspector.wallStats', { towers: plural('count.towers', lay.towers.length), length: fmtLength(lay.length, meta) })),
+      h('div', { class: 'gates-head muted small' }, h('span', {}, t('inspector.gateId')), h('span', {}, t('inspector.gateName')), h('span', {}, t('inspector.gatePosition')), h('span', {})),
       gates,
-      h('button', { class: 'btn btn-small', onclick: addGate }, icon('plus'), 'Add gate'));
+      h('button', { class: 'btn btn-small', onclick: addGate }, icon('plus'), t('inspector.addGate')));
   }
 
   function render() {
@@ -321,6 +344,7 @@ export function mountInspector(root, { canvas, mapSettings }) {
   };
   on('selection', schedule);
   on('doc', (d) => { if (!d?.live) schedule(); });
+  onLangChange(schedule);
   on('focus-field', (name) => {
     emit('open-panel', 'inspector');
     requestAnimationFrame(() => requestAnimationFrame(() => {

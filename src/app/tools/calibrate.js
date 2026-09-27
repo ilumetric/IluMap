@@ -4,6 +4,8 @@ import { store, change, emit } from '../state.js';
 import { fromPairs, worldToPx, pxToWorld } from '../../core/calibration.js';
 import { toView } from '../../core/render-svg.js';
 import { openDialog, toast } from '../dom.js';
+import { t } from '../i18n/index.js';
+import { unitLabel } from '../i18n/format.js';
 
 let picked = []; // [{px, world}]
 let busy = false;
@@ -16,15 +18,15 @@ function currentT() {
 
 export default {
   id: 'calibrate',
-  label: 'Calibrate background',
+  get label() { return t('tools.calibrate'); },
   key: 'K',
   icon: 'calibrate',
   hint: () => (store.background?.url
-    ? `Calibrate: click a known point on the image (${picked.length + 1} of 2), then type its world coordinates · Esc cancels`
-    : 'Calibrate: load a background image first (drop an image onto the canvas, or the image button on the right)'),
+    ? t('tools.calibrateHint', { i: picked.length + 1 })
+    : t('tools.calibrateNoImage')),
   activate() {
     picked = [];
-    if (!store.background?.url) toast('No background image loaded — drop an image onto the canvas first.', { type: 'warn' });
+    if (!store.background?.url) toast(t('toast.noBackground'), { type: 'warn' });
   },
   deactivate() { picked = []; },
   async down(ctx) {
@@ -35,13 +37,13 @@ export default {
     busy = true;
     const guess = ctx.world.map(Math.round);
     const res = await openDialog({
-      title: `Calibration point ${picked.length + 1} of 2`,
-      message: `Image pixel (${px[0]}, ${px[1]}). Enter the world coordinates (${store.doc.meta.units}) this pixel should map to.`,
+      title: t('dialogs.calibrate.title', { i: picked.length + 1 }),
+      message: t('dialogs.calibrate.message', { u: String(px[0]), v: String(px[1]), units: unitLabel(store.doc.meta.units) }),
       fields: [
-        { name: 'x', label: 'World X', type: 'number', value: guess[0], step: 'any' },
-        { name: 'y', label: 'World Y', type: 'number', value: guess[1], step: 'any' },
+        { name: 'x', label: t('dialogs.calibrate.worldX'), type: 'number', value: guess[0], step: 'any' },
+        { name: 'y', label: t('dialogs.calibrate.worldY'), type: 'number', value: guess[1], step: 'any' },
       ],
-      okText: picked.length ? 'Apply calibration' : 'Next point',
+      okText: picked.length ? t('dialogs.calibrate.apply') : t('dialogs.calibrate.next'),
     });
     busy = false;
     if (!res || res.x == null || res.y == null) return;
@@ -52,7 +54,7 @@ export default {
       try {
         fromPairs(picked, { reflect: !!store.doc.meta.flipY });
       } catch (e) {
-        toast(`Calibration failed: ${e.message}`, { type: 'error' });
+        toast(t('toast.calibrationFailed', { error: e.message }), { type: 'error' });
         picked = [];
         return;
       }
@@ -60,7 +62,7 @@ export default {
       picked = [];
       change((doc) => { doc.view.background.calibration = pairs; });
       emit('background');
-      toast('Background calibrated.', { type: 'ok' });
+      toast(t('toast.calibrated'), { type: 'ok' });
       emit('set-tool', 'select');
     }
   },

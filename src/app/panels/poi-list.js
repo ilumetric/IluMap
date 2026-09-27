@@ -8,19 +8,20 @@ import { nextId, zoneOf } from '../../core/model.js';
 import { ICONS } from '../../core/render-svg.js';
 import { h, clear } from '../dom.js';
 import { icon } from '../ui/icons.js';
+import { t, label, onLangChange } from '../i18n/index.js';
 
 export function mountPoiList(root, { canvas, onCount = () => {} }) {
   const f = store.prefs.poiFilter || (store.prefs.poiFilter = { status: '', type: '', zone: '' });
   let query = '';
 
   const search = h('input', {
-    type: 'search', class: 'search', placeholder: 'Search POIs…  (/)', name: 'poi-search', id: 'poi-search',
+    type: 'search', class: 'search', name: 'poi-search', id: 'poi-search',
     oninput: (e) => { query = e.target.value.trim().toLowerCase(); renderList(); },
   });
-  const addBtn = h('button', { type: 'button', class: 'icon-btn accent', title: 'Add a new POI (unplaced) and edit it', 'aria-label': 'Add POI', onclick: addPoi }, icon('plus'));
-  const selStatus = h('select', { name: 'f-status', title: 'Filter by status', onchange: (e) => { f.status = e.target.value; savePrefs(); renderList(); } });
-  const selType = h('select', { name: 'f-type', title: 'Filter by type', onchange: (e) => { f.type = e.target.value; savePrefs(); renderList(); } });
-  const selZone = h('select', { name: 'f-zone', title: 'Filter by zone', onchange: (e) => { f.zone = e.target.value; savePrefs(); renderList(); } });
+  const addBtn = h('button', { type: 'button', class: 'icon-btn accent', onclick: addPoi }, icon('plus'));
+  const selStatus = h('select', { name: 'f-status', onchange: (e) => { f.status = e.target.value; savePrefs(); renderList(); } });
+  const selType = h('select', { name: 'f-type', onchange: (e) => { f.type = e.target.value; savePrefs(); renderList(); } });
+  const selZone = h('select', { name: 'f-zone', onchange: (e) => { f.zone = e.target.value; savePrefs(); renderList(); } });
   const list = h('div', { class: 'poi-list' });
   root.append(
     h('div', { class: 'poi-tools' }, h('div', { class: 'poi-search-row' }, search, addBtn), h('div', { class: 'filters' }, selStatus, selType, selZone)),
@@ -66,7 +67,7 @@ export function mountPoiList(root, { canvas, onCount = () => {} }) {
     const row = h('div', {
       class: `poi-row${store.selection.has(p.id) ? ' sel' : ''}${p.placed === false ? ' unplaced' : ''}`,
       draggable: 'true',
-      title: `${p.id}${p.placed === false ? ' — drag onto the map to place' : ''}`,
+      title: p.placed === false ? t('points.dragToPlace', { id: p.id }) : p.id,
       onclick: (e) => {
         select(p.id, { toggle: e.shiftKey });
         if (!e.shiftKey && p.placed !== false) canvas.centerOn([p.x, p.y]);
@@ -85,7 +86,7 @@ export function mountPoiList(root, { canvas, onCount = () => {} }) {
     h('span', { class: 'poi-main' },
       h('span', { class: 'poi-name' }, p.name),
       h('span', { class: 'poi-sub' }, p.id, zid ? ` · ${zones.get(zid) || zid}` : '')),
-    h('span', { class: `badge status-${p.status || 'idea'}` }, p.status || 'idea'));
+    h('span', { class: `badge status-${p.status || 'idea'}` }, label('status', p.status || 'idea')));
     return row;
   }
 
@@ -93,10 +94,18 @@ export function mountPoiList(root, { canvas, onCount = () => {} }) {
     const doc = store.doc;
     const rs = resolveStyle(doc.style);
     const zones = new Map(doc.layers.zones.map((z) => [z.id, z.name || z.id]));
-    fillSelect(selStatus, f.status, POI_STATUSES.map((s) => [s, s]), 'All statuses');
+    search.placeholder = t('points.search');
+    search.setAttribute('aria-label', t('points.searchAria'));
+    addBtn.title = t('points.addTitle');
+    addBtn.setAttribute('aria-label', t('points.add'));
+    for (const [sel, key] of [[selStatus, 'points.filterStatus'], [selType, 'points.filterType'], [selZone, 'points.filterZone']]) {
+      sel.title = t(key);
+      sel.setAttribute('aria-label', t(key));
+    }
+    fillSelect(selStatus, f.status, POI_STATUSES.map((s) => [s, label('status', s)]), t('points.allStatuses'));
     const types = [...new Set([...Object.keys(rs.poiTypes), ...doc.pois.map((p) => p.type)])];
-    fillSelect(selType, f.type, types.map((t) => [t, t]), 'All types');
-    fillSelect(selZone, f.zone, [...zones.entries()], 'All zones');
+    fillSelect(selType, f.type, types.map((ty) => [ty, label('poiTypes', ty)]), t('points.allTypes'));
+    fillSelect(selZone, f.zone, [...zones.entries()], t('points.allZones'));
 
     const match = (p) => {
       if (f.status && (p.status || 'idea') !== f.status) return false;
@@ -114,15 +123,15 @@ export function mountPoiList(root, { canvas, onCount = () => {} }) {
     clear(list);
     onCount(shown.length === doc.pois.length ? String(doc.pois.length) : `${shown.length}/${doc.pois.length}`);
     if (unplaced.length) {
-      list.append(h('div', { class: 'section-title warn' }, `Unplaced (${unplaced.length}) — drag onto the map`));
+      list.append(h('div', { class: 'section-title warn' }, t('points.unplaced', { n: unplaced.length })));
       for (const p of unplaced) list.append(renderRow(p, rs, zones));
     }
     if (placed.length) {
-      if (unplaced.length) list.append(h('div', { class: 'section-title' }, `On the map (${placed.length})`));
+      if (unplaced.length) list.append(h('div', { class: 'section-title' }, t('points.onMap', { n: placed.length })));
       for (const p of placed) list.append(renderRow(p, rs, zones));
     }
-    if (!shown.length) list.append(h('p', { class: 'muted empty' }, doc.pois.length ? 'No POI matches the filters.' : 'No POIs yet. Press O and click the map, or +.'));
-    else list.append(h('p', { class: 'panel-hint' }, 'Drag a row onto the map to place or move a POI.'));
+    if (!shown.length) list.append(h('p', { class: 'muted empty' }, doc.pois.length ? t('points.noMatch') : t('points.empty')));
+    else list.append(h('p', { class: 'panel-hint' }, t('points.dragHint')));
   }
 
   let pending = false;
@@ -133,6 +142,7 @@ export function mountPoiList(root, { canvas, onCount = () => {} }) {
   };
   on('doc', (d) => { if (!d?.live) schedule(); });
   on('selection', schedule);
+  onLangChange(schedule);
   renderList();
   return { focusSearch: () => search.focus() };
 }

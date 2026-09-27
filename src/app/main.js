@@ -27,8 +27,10 @@ import { closeMenu, isMenuOpen } from './ui/menu.js';
 import { applyTheme, openSettings } from './settings.js';
 import { initSession, openFileCommand, handleDroppedFiles, hasUnpersistedChanges } from './session.js';
 import { persistent } from './projects.js';
+import { t, plural, onLangChange, applyI18n } from './i18n/index.js';
 
 applyTheme();
+applyI18n(document);
 
 const canvas = new Canvas($('#stage'), { getTool: () => TOOLS[store.tool] });
 
@@ -36,10 +38,10 @@ const canvas = new Canvas($('#stage'), { getTool: () => TOOLS[store.tool] });
 const inspectorPin = h('button', { type: 'button', class: 'icon-btn fp-pin' });
 const pointsCount = h('span', { class: 'fp-count' });
 const panels = {
-  layers: createPanel({ id: 'layers', title: 'Layers', icon: 'layers', dock: 'left', width: 272 }),
-  points: createPanel({ id: 'points', title: 'Points', icon: 'points', dock: 'right', width: 300, actions: [pointsCount] }),
-  inspector: createPanel({ id: 'inspector', title: 'Inspector', icon: 'inspector', dock: 'right', width: 300, actions: [inspectorPin] }),
-  style: createPanel({ id: 'style', title: 'Style', icon: 'style', dock: 'right', width: 320 }),
+  layers: createPanel({ id: 'layers', titleKey: 'panels.layers.title', icon: 'layers', dock: 'left', width: 272 }),
+  points: createPanel({ id: 'points', titleKey: 'panels.points.title', icon: 'points', dock: 'right', width: 300, actions: [pointsCount] }),
+  inspector: createPanel({ id: 'inspector', titleKey: 'panels.inspector.title', icon: 'inspector', dock: 'right', width: 300, actions: [inspectorPin] }),
+  style: createPanel({ id: 'style', titleKey: 'panels.style.title', icon: 'style', dock: 'right', width: 320 }),
 };
 
 mountLayers(panels.layers.body, { canvas });
@@ -49,17 +51,18 @@ mountMapSettings(mapSettings, { canvas });
 mountInspector(panels.inspector.body, { canvas, mapSettings });
 mountStyle(panels.style.body);
 
-on('inspector-mode', (mode) => panels.inspector.setTitle(mode === 'map' ? 'Map' : 'Inspector'));
+on('inspector-mode', (mode) => panels.inspector.setTitle(mode === 'map' ? 'panels.inspector.mapTitle' : 'panels.inspector.title'));
 on('open-panel', (id) => panels[id]?.open());
 
 function updatePin() {
   const auto = store.prefs.inspectorAuto !== false;
   inspectorPin.replaceChildren(icon(auto ? 'pin' : 'pinOff'));
   inspectorPin.classList.toggle('on', auto);
-  inspectorPin.title = auto ? 'Opens automatically on selection — click to keep it closed until you open it' : 'Stays closed on selection — click to open automatically again';
+  inspectorPin.title = auto ? t('panels.inspector.pinOn') : t('panels.inspector.pinOff');
   inspectorPin.setAttribute('aria-pressed', String(auto));
-  inspectorPin.setAttribute('aria-label', 'Open on selection');
+  inspectorPin.setAttribute('aria-label', t('panels.inspector.pinAria'));
 }
+onLangChange(updatePin);
 inspectorPin.addEventListener('click', () => { store.prefs.inspectorAuto = store.prefs.inspectorAuto === false; updatePin(); emit('prefs'); });
 updatePin();
 on('selection', () => { if (store.selection.size && store.prefs.inspectorAuto !== false) panels.inspector.open(); });
@@ -81,11 +84,11 @@ function deleteSelection() {
   const items = selectedItems().filter(({ hit }) => !isLayerLocked(hit.kind === 'poi' ? 'pois' : hit.layer));
   if (!items.length) return;
   change((doc) => { for (const { id } of items) removeById(doc, id); });
-  toast(`Deleted ${items.length} item(s) — Ctrl+Z to undo`, { timeout: 2500 });
+  toast(plural('toast.deleted', items.length), { timeout: 2500 });
 }
 
-const undoCmd = () => { if (!undo()) toast('Nothing to undo', { timeout: 1200 }); };
-const redoCmd = () => { if (!redo()) toast('Nothing to redo', { timeout: 1200 }); };
+const undoCmd = () => { if (!undo()) toast(t('toast.nothingToUndo'), { timeout: 1200 }); };
+const redoCmd = () => { if (!redo()) toast(t('toast.nothingToRedo'), { timeout: 1200 }); };
 
 // --- chrome ------------------------------------------------------------------------
 const sidebar = mountSidebar({ openSettings });
@@ -93,7 +96,7 @@ const titlePill = mountTitlePill();
 mountPanelToggles({ panels });
 mountHistory({ undoCmd, redoCmd });
 mountToolbar({ tools: TOOLS, activateTool, deleteSelection, panels });
-mountViewTools({ canvas, showHelp });
+mountViewTools({ canvas, showHelp, openSettings });
 mountDock();
 mountMinimap({ canvas });
 mountZoomPill({ canvas });
@@ -104,10 +107,10 @@ new ResizeObserver(() => clampFloatingPanels()).observe($('#stage'));
 
 // --- drag & drop ---------------------------------------------------------------------
 on('poi-drop', ({ id, world, snap }) => {
-  if (isLayerLocked('pois')) { toast('The POI layer is locked', { type: 'warn' }); return; }
+  if (isLayerLocked('pois')) { toast(t('toast.poiLayerLocked'), { type: 'warn' }); return; }
   placePoi(id, world, snap ? (p) => canvas.snap(p) : null);
   select(id);
-  if (!isLayerVisible('pois')) toast('POIs are hidden — show the POIs layer to see it.', { type: 'warn' });
+  if (!isLayerVisible('pois')) toast(t('toast.poisHidden'), { type: 'warn' });
 });
 on('files-drop', async ({ files, handles = [] }) => handleDroppedFiles(files, await Promise.all(handles)));
 // dropping files outside the stage should not navigate away
@@ -148,6 +151,7 @@ document.addEventListener('keydown', (e) => {
   if (mod && k === 'o') { e.preventDefault(); openFileCommand(); return; }
   if (mod && k === 'b') { e.preventDefault(); sidebar.toggle(); return; }
   if (mod && k === 'k') { e.preventDefault(); sidebar.focusSearch(); return; }
+  if (mod && e.key === ',') { e.preventDefault(); openSettings(); return; }
   if (isMenuOpen()) return; // the menu handles its own keys
   if (isTyping(e.target)) {
     if (e.key === 'Escape') e.target.blur();
@@ -217,38 +221,40 @@ window.addEventListener('beforeunload', (e) => {
 });
 
 function showHelp() {
+  // [keys (shortcuts.keys.* when they contain words, else literal), description key]
   const rows = [
-    ['V', 'Select / move (Shift+click: add to selection, drag empty space: box select)'],
-    ['H / hold Space / middle mouse', 'Pan'],
-    ['Wheel', 'Zoom to cursor · F fit · + / − zoom'],
-    ['L', 'Line (coast, rivers, roads, rails)'],
-    ['P', 'Polygon (land, water, zones)'],
-    ['W', 'Wall (towers and gates in the inspector)'],
-    ['O', 'POI — click to place; drag POIs from the Points panel onto the map'],
-    ['M', 'Measure'],
-    ['K', 'Calibrate background image (2 points)'],
-    ['Enter / double-click / right-click', 'Finish drawing'],
-    ['C', 'Close the path while drawing'],
-    ['Backspace', 'Remove the last point while drawing'],
-    ['Esc', 'Cancel drawing / back to Select / clear selection'],
-    ['Shift', 'Invert grid snapping (magnet toggle, bottom right) while drawing or dragging'],
-    ['Alt+click segment', 'Insert a vertex (selected feature)'],
-    ['Double-click vertex', 'Delete the vertex'],
-    ['Delete', 'Delete the selection'],
-    ['Arrows', 'Nudge selection by grid/10 (Shift: one grid step)'],
-    ['Ctrl+Z / Ctrl+Y', 'Undo / redo'],
-    ['Ctrl+S / Ctrl+Shift+S', 'Save to map.json / save as'],
-    ['Ctrl+O', 'Open a map.json as a local map'],
-    ['Ctrl+A', 'Select all features of the active layer'],
-    ['Ctrl+B', 'Show / hide the sidebar'],
-    ['Ctrl+K', 'Search maps'],
-    ['G', 'Toggle grid'],
-    ['/', 'Search POIs'],
-    ['[ / ]', 'Toggle the Layers panel / the Points and Inspector panels'],
-    ['F2', 'Rename the map'],
+    ['V', 'select'],
+    [t('shortcuts.keys.pan'), 'pan'],
+    [t('shortcuts.keys.wheel'), 'zoom'],
+    ['L', 'line'],
+    ['P', 'polygon'],
+    ['W', 'wall'],
+    ['O', 'poi'],
+    ['M', 'measure'],
+    ['K', 'calibrate'],
+    [t('shortcuts.keys.finish'), 'finish'],
+    ['C', 'close'],
+    ['Backspace', 'removePoint'],
+    ['Esc', 'escape'],
+    ['Shift', 'shift'],
+    [t('shortcuts.keys.altClick'), 'insertVertex'],
+    [t('shortcuts.keys.dblVertex'), 'deleteVertex'],
+    ['Delete', 'delete'],
+    [t('shortcuts.keys.arrows'), 'nudge'],
+    ['Ctrl+Z / Ctrl+Y', 'undoRedo'],
+    ['Ctrl+S / Ctrl+Shift+S', 'save'],
+    ['Ctrl+O', 'open'],
+    ['Ctrl+A', 'selectAll'],
+    ['Ctrl+B', 'sidebar'],
+    ['Ctrl+K', 'searchMaps'],
+    ['Ctrl+,', 'settings'],
+    ['G', 'grid'],
+    ['/', 'searchPois'],
+    ['[ / ]', 'panels'],
+    ['F2', 'rename'],
   ];
-  const table = h('table', { class: 'keys' }, rows.map(([k, v]) => h('tr', {}, h('td', {}, h('kbd', {}, k)), h('td', {}, v))));
-  openDialog({ title: 'Keyboard shortcuts', body: table, okText: 'Close', cancelText: '', wide: true });
+  const table = h('table', { class: 'keys' }, rows.map(([k, v]) => h('tr', {}, h('td', {}, h('kbd', {}, k)), h('td', {}, t(`shortcuts.${v}`)))));
+  openDialog({ title: t('shortcuts.title'), body: table, okText: t('dialogs.close'), cancelText: '', wide: true });
 }
 
 // --- startup ---------------------------------------------------------------------------
@@ -259,7 +265,7 @@ on('load', () => {
 
 initSession().catch((e) => {
   console.error(e);
-  toast(`Startup failed: ${e.message}`, { type: 'error', timeout: 0 });
+  toast(t('toast.startupFailed', { error: e.message }), { type: 'error', timeout: 0 });
 });
 
 // Expose a tiny debugging handle (not an API).
