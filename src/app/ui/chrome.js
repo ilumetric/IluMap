@@ -322,17 +322,55 @@ export function mountReadout() {
   sel.hidden = true;
 }
 
+// A line of a tool hint that starts with a modifier ("Ctrl+click: …", "Alt: …") lights up while it is held.
+const MOD_OF_LINE = /^(Ctrl|Alt|Shift)\b/;
+
+/**
+ * The active tool's shortcuts, top right under the history pill (right-aligned),
+ * one per line from the tool's hint ("keys: action" / "keys — action" · …).
+ */
+function mountToolKeys({ tools }) {
+  const root = document.getElementById('tool-keys');
+  let lines = [];
+  const render = () => {
+    const tool = tools[store.tool];
+    const hint = tool?.hint?.() || '';
+    root.replaceChildren();
+    lines = [];
+    for (const part of hint.split(' · ').map((x) => x.trim()).filter(Boolean)) {
+      const m = part.match(/^(.+?)(?::| —) (.+)$/);
+      const keys = m ? m[1] : '';
+      const row = h('div', { class: 'tk-row' }, h('span', { class: 'tk-text' }, m ? m[2] : part), keys ? h('span', { class: 'tk-keys' }, keys) : null);
+      const mod = (keys || part).match(MOD_OF_LINE)?.[1]?.toLowerCase();
+      if (mod) row.dataset.mod = mod;
+      lines.push(row);
+      root.append(row);
+    }
+    root.hidden = !lines.length;
+  };
+  const light = (mods = {}) => {
+    for (const row of lines) row.classList.toggle('on', !!row.dataset.mod && !!mods[row.dataset.mod]);
+  };
+  on('tool', render);
+  on('layers', render);
+  on('new-type', render);
+  on('hud', render);
+  on('modifiers', light);
+  onLangChange(render);
+  render();
+}
+
 export function mountHud({ tools }) {
+  mountToolKeys({ tools });
   const hud = document.getElementById('hud');
+  // bottom: the tool's live status only (its shortcuts are listed top right)
   const update = () => {
     const t = tools[store.tool];
     const status = t?.status?.() || '';
-    const hint = store.tool === 'select' ? '' : t?.hint?.() || '';
     hud.replaceChildren();
-    if (!hint && !status) { hud.hidden = true; return; }
+    if (!status) { hud.hidden = true; return; }
     hud.hidden = false;
-    if (status) hud.append(h('div', { class: 'hud-status' }, status));
-    if (hint) hud.append(h('div', { class: 'hud-hint' }, hint));
+    hud.append(h('div', { class: 'hud-status' }, status));
   };
   on('hud', update);
   on('tool', update);

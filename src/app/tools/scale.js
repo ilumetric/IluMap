@@ -159,21 +159,6 @@ export default {
     if (ctx.hit?.type === 'poi' || insideBox(viewBox(editableItems()), ctx.view)) hover = { type: 'inside' };
   },
 
-  tip(canvas) {
-    if (!hover) return null;
-    if (hover.type === 'handle') {
-      const corner = hover.handle.length === 2;
-      if (canvas.mods.alt) return { text: t('tips.scaleCentre') };
-      if (corner) return { text: t(canvas.mods.ctrl ? 'tips.scaleFree' : 'tips.scaleCorner') };
-      return { text: t('tips.scaleEdge') };
-    }
-    if (hover.type === 'inside') return { text: t('tips.move') };
-    if (hover.type === 'object') {
-      const it = findById(store.doc, hover.id)?.item;
-      return { text: t(canvas.mods.shift ? 'tips.addSelect' : 'tips.select', { name: it?.name || it?.id || hover.id }), tone: 'accent' };
-    }
-    return null;
-  },
 
   down(ctx) {
     const el = ctx.e?.target?.closest?.('[data-scale-handle]');

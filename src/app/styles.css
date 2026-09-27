@@ -854,15 +854,18 @@ input[type="color"].swatch { width: 16px; height: 16px; margin: 0 5px; }
 .ov-del.blocked path { stroke: var(--accent-yellow); }
 .ov-pick { fill: var(--accent); fill-opacity: 0.1; stroke: var(--accent); stroke-linejoin: round; }
 
-/* the contextual tip next to the cursor (Canvas.updateTip / tool.tip) */
-.cursor-tip {
-  position: absolute; z-index: 40; pointer-events: none; max-width: 260px; padding: 3px 8px;
-  background: var(--menu); border: 1px solid var(--border); border-radius: 7px; box-shadow: var(--shadow);
-  color: var(--text); font-size: 11.5px; line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+/* the active tool's shortcuts: top right under the history pill, right-aligned; a line lights up while its modifier is held */
+#tool-keys {
+  position: absolute; top: 60px; right: 14px; z-index: 5; max-width: 340px;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 2px;
+  pointer-events: none; text-align: right; font-size: 11px; line-height: 1.45; color: var(--text-muted);
 }
-.cursor-tip.tip-accent { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
-.cursor-tip.tip-danger { color: var(--accent-red); border-color: color-mix(in srgb, var(--accent-red) 45%, var(--border)); }
-.cursor-tip.tip-warn { color: var(--accent-yellow); }
+#tool-keys .tk-row { display: flex; justify-content: flex-end; align-items: baseline; gap: 8px; padding: 0 2px; border-radius: 5px; }
+#tool-keys .tk-text { opacity: 0.85; }
+#tool-keys .tk-keys { color: var(--text); font-weight: 600; white-space: nowrap; }
+#tool-keys .tk-row.on { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+#tool-keys .tk-row.on .tk-keys { color: var(--accent); }
+@container stage (max-width: 720px) { #tool-keys { display: none; } }
 .ov-scale-handle { fill: #ffffff; stroke: var(--accent); }
 .ov-scale-handle:hover { fill: var(--accent); }
 #canvas.panning .ov-scale-handle { cursor: inherit !important; pointer-events: none; }

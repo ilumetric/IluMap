@@ -255,8 +255,9 @@ only colours map content.
   pointer and calls `tool.hover(ctx)` (on pointer moves and when a modifier
   is pressed or released), the tool draws its preview in `overlay()` (Edit:
   Alt → the point that will be added, a red cross on the point that will be
-  deleted; Ctrl → outline of the object a click selects) and returns
-  `tip()` — a short text next to the cursor. Shortcuts go through `shortcutKey(e)` (dom.js):
+  deleted; Ctrl → outline of the object a click selects). The tool's hint
+  is listed top right under the history pill, one shortcut per line
+  ("keys: action"); the line of a held modifier lights up ('modifiers'). Shortcuts go through `shortcutKey(e)` (dom.js):
   Latin keys as typed, other layouts by physical key.
 * `projects.js` — IndexedDB storage of local projects (below).
 * `session.js` — the workspace: which project is open, autosave, new / open /

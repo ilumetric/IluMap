@@ -76,7 +76,7 @@ they live in `core/render-svg.js` because exports need them.
 │  Demo Isles ⋯ ││ (⬠)  └─────────┘                                           │├──────── ═ ─────────┤
 │  …            ││ (♜)                                                        ││ [Inspector | Style] │
 │               ││ (o)                                                        ││                     │
-│               ││ ─1 km─              [tool hint]            x 12 y 34 cm   ││  properties of the  │
+│               ││ ─1 km─              [tool status]          x 12 y 34 cm   ││  properties of the  │
 │ Settings  RU  ││ [minimap]  [pw Roads │ La Wa … Po │ type o]  [S F │ - % + fit │ ? ⚙] ││  selection / style  │
 └───────────────┘└────────────────────────────────────────────────────────────┘└─────────────────────┘
 ```
@@ -145,8 +145,12 @@ they live in `core/render-svg.js` because exports need them.
     − / % / +, fit, keyboard shortcuts (and Settings while the sidebar is
     collapsed). The **cursor read-out** (coordinates in mono, land / water ·
     zone, selection count in teal) sits just above it.
-  * above the dock: the **tool HUD** (hint and live measurement), only while
-    a tool other than Select is active.
+  * above the dock: the **tool HUD** — the tool's live status only (what
+    Edit is editing, lengths, scale %).
+  * top right under the history pill: the active tool's **shortcuts**, one
+    per line, right-aligned (action muted, keys in bold); the line of a held
+    modifier (Ctrl / Alt / Shift) lights up in teal. Hidden on narrow stages.
+    No text follows the cursor — hover feedback is drawn on the map only.
 * **Layers panel** (`ui/floating-panel.js`): the one floating card — 42px
   header (icon, title, close) and a scrolling body, max height 70vh, docked
   next to the tool stack. Dragging the header floats it (position saved in

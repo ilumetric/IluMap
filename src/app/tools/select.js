@@ -109,7 +109,7 @@ function nearestSegment(ctx, tol) {
 
 const minPoints = (f) => (f.kind === 'polygon' ? 3 : 2);
 
-/** What the pointer would do now (drives the overlay preview, the cursor tip and the click). */
+/** What the pointer would do now (drives the overlay preview and the click). */
 function hoverFor(ctx) {
   const upp = ctx.canvas.unitsPerPx;
   if (ctx.ctrl) {
@@ -146,7 +146,6 @@ function objectsInBox(b) {
   return ids;
 }
 
-const nameOf = (id) => { const it = findById(store.doc, id)?.item; return it?.name || it?.id || id; };
 
 export default {
   id: 'select',
@@ -289,23 +288,6 @@ export default {
     return store.vsel.size ? t('tools.editScopePoints', { what, points: String(store.vsel.size) }) : t('tools.editScope', { what });
   },
 
-  /** The text next to the cursor for the current modifiers and pointer. */
-  tip(canvas) {
-    if (!hover) return null;
-    switch (hover.type) {
-      case 'pick': {
-        const name = nameOf(hover.id);
-        const key = !canvas.mods.shift ? 'tips.select' : store.selection.has(hover.id) ? 'tips.deselect' : 'tips.addSelect';
-        return { text: t(key, { name }), tone: 'accent' };
-      }
-      case 'pickNone': return { text: t('tips.pickNone') };
-      case 'delete': return hover.ok ? { text: t('tips.deletePoint'), tone: 'danger' } : { text: t('tips.minPoints'), tone: 'warn' };
-      case 'add': return { text: t('tips.addPoint'), tone: 'accent' };
-      case 'altNone': return { text: t('tips.altNone') };
-      case 'nothing': return { text: t('tips.editNothing') };
-      default: return null;
-    }
-  },
 
   overlay(canvas) {
     let s = boxOverlay(canvas, drag);
