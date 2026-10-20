@@ -26,20 +26,21 @@ import { autoEnhanceSelects } from './ui/select.js';
 import { installColorPicker } from './ui/color-picker.js';
 import { mountDock } from './ui/dock.js';
 import { mountMinimap } from './ui/minimap.js';
+import { mountBackdrop } from './ui/backdrop.js';
 import {
   mountTitlePill, mountPanelToggles, mountHistory, mountZoomPill, mountReadout, mountHud, historyLabel,
 } from './ui/chrome.js';
 import { closeMenu, isMenuOpen } from './ui/menu.js';
-import { applyTheme, openSettings } from './settings.js';
+import { openSettings } from './settings.js';
 import { initSession, openFileCommand, handleDroppedFiles, hasUnpersistedChanges } from './session.js';
 import { persistent } from './projects.js';
 import { t, applyI18n } from './i18n/index.js';
 
-applyTheme();
 applyI18n(document);
 autoEnhanceSelects(); // every <select> gets the app's own dropdown (ui/select.js)
 installColorPicker(); // every <input type="color"> opens the colour-wheel picker (ui/color-picker.js)
 
+mountBackdrop($('#stage')); // ISOM terrain patches behind the map
 const canvas = new Canvas($('#stage'), { getTool: () => TOOLS[store.tool] });
 setActionCanvas(canvas);
 // right-click on an object (map, Layers, Points): the object menu (Delete, Center, …)

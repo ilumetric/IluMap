@@ -19,7 +19,7 @@ export const LANGUAGES = [
 ];
 export const DICTIONARIES = { ru, en };
 export const FALLBACK_LANG = 'en';
-/** localStorage key (next to ilumap.uiTheme / ilumap.prefs.v1); index.html reads it before first paint. */
+/** localStorage key (next to ilumap.prefs.v1); index.html reads it before first paint. */
 export const LANG_KEY = 'ilumap.lang';
 
 const listeners = new Set();

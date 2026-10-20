@@ -1,7 +1,7 @@
 // SVG viewport: pan/zoom, ocean (inside the bounds only), calibrated background
 // image, grid, bounds, layer content (via core/render-svg.js), selection +
 // vertex handles, tool overlay. Outside the bounds the stage shows the UI's
-// dot grid, which follows pan/zoom through CSS custom properties.
+// backdrop (ui/backdrop.js), which follows the pan through CSS custom properties.
 //
 // Contextual feedback, the same for every tool: the canvas tracks the held
 // modifiers (Ctrl / Alt / Shift) and the pointer, and asks the active tool
@@ -12,6 +12,7 @@
 // emits 'modifiers' (the tool's shortcut list highlights the matching line).
 
 import { store, on, emit, isLayerLocked, visibleLayers, vkey } from './state.js';
+import { TILE as BACKDROP_TILE } from './ui/backdrop.js';
 import { renderParts, renderGrid, viewRectOfBounds, toView, fromView, esc } from '../core/render-svg.js';
 import { computeTerrain } from '../core/terrain.js';
 import { resolveStyle } from '../core/styles.js';
@@ -203,7 +204,7 @@ export class Canvas {
     if (f.has('transform')) {
       const { k, tx, ty } = this.view;
       this.g.world.setAttribute('transform', `matrix(${k} 0 0 ${k} ${r2(tx)} ${r2(ty)})`);
-      this.updateDots();
+      this.updateBackdrop();
       emit('view');
     }
     if (f.has('content')) this.renderContent();
@@ -241,16 +242,12 @@ export class Canvas {
     return { x0: a[0], y0: a[1], x1: b[0], y1: b[1] };
   }
 
-  /** The UI dot grid (CSS background of the stage) follows pan and zoom. */
-  updateDots() {
-    const { k, tx, ty } = this.view;
-    // spacing stays between 20 and 40 px: doubles/halves as the zoom crosses powers of two
-    const rel = Math.log2(Math.max(1e-9, k / this.kFit));
-    const size = 20 * 2 ** (rel - Math.floor(rel));
+  /** The canvas background (ui/backdrop.js) follows the pan; it keeps its size when zooming. */
+  updateBackdrop() {
+    const { tx, ty } = this.view;
     const st = this.stage.style;
-    st.setProperty('--dot-size', `${r2(size)}px`);
-    st.setProperty('--dot-x', `${r2(tx % size)}px`);
-    st.setProperty('--dot-y', `${r2(ty % size)}px`);
+    st.setProperty('--pan-x', `${r2(tx % BACKDROP_TILE)}px`);
+    st.setProperty('--pan-y', `${r2(ty % BACKDROP_TILE)}px`);
   }
 
   renderGrid() {
@@ -305,13 +302,13 @@ export class Canvas {
     let s = '';
     if (c.quad[0] / upp >= 6 && c.quad[1] / upp >= 6) {
       const d = lines(c.quad[0], c.quad[1], 4000);
-      if (d) s += `<path d="${d}" fill="none" style="stroke:var(--accent)" stroke-opacity="0.22" stroke-width="${r2(upp)}"/>`;
+      if (d) s += `<path d="${d}" fill="none" style="stroke:var(--select)" stroke-opacity="0.22" stroke-width="${r2(upp)}"/>`;
     }
     const sx = c.quad[0] * c.sections.resolution[0];
     const sy = c.quad[1] * c.sections.resolution[1];
     if (sx / upp >= 3 && sy / upp >= 3) {
       const d = lines(sx, sy, 4000);
-      if (d) s += `<path d="${d}" fill="none" style="stroke:var(--accent)" stroke-opacity="0.8" stroke-width="${r2(1.5 * upp)}"${c.sections.estimated ? ` stroke-dasharray="${r2(6 * upp)} ${r2(4 * upp)}"` : ''}/>`;
+      if (d) s += `<path d="${d}" fill="none" style="stroke:var(--select)" stroke-opacity="0.8" stroke-width="${r2(1.5 * upp)}"${c.sections.estimated ? ` stroke-dasharray="${r2(6 * upp)} ${r2(4 * upp)}"` : ''}/>`;
     }
     g.innerHTML = s;
   }

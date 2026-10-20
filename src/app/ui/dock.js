@@ -129,7 +129,6 @@ export function mountDock() {
   on('layers', update);
   on('tool', update);
   on('new-type', update);
-  on('theme', update);
   onLangChange(update);
   on('doc', (d) => { if (!d?.live) update(); });
   update();

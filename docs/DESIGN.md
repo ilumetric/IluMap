@@ -1,73 +1,79 @@
 # IluMap — UI design
 
-The editor chrome borrows ChatGPT's neutral palette: a near-black (or near-white)
-canvas that fills the window, a quiet sidebar, and small floating pills and
-cards on top of the map. Colour is scarce and meaningful: one teal accent for
-"active / primary / focus", plus a few semantic accents. This document is the
-contract for contributors — keep new UI inside it.
+The editor has **one look**, dark only, shared with IluBoard (its *Fun*
+style): a canvas like the empty part of an orienteering map (faint ISOM
+terrain patches and point symbols), panels and pills floating on it with
+square corners, a box of bright markers for colour, sticker badges that tilt a
+little, and hand-written section labels. There is no theme or style setting.
+This document is the contract for contributors — keep new UI inside it.
 
-The **chrome is independent of the map style**. `data-ui-theme` on `<html>`
-(dark / light, from Settings: System / Dark / Light) themes the chrome; the
-map's `style.preset` (`graphite`, `blueprint`, `parchment`) only colours map
-content — the ocean inside the bounds, land, zones, lines, POIs. Nothing in
-`src/app/styles.css` may depend on the map preset, and nothing in
-`src/core/styles.js` knows about the chrome.
+The **chrome is independent of the map style**. The map's `style.preset`
+(`graphite`, `blueprint`, `parchment`) only colours map content — the ocean
+inside the bounds, land, zones, lines, POIs. Nothing in `src/app/styles.css`
+may depend on the map preset, and nothing in `src/core/styles.js` knows about
+the chrome.
 
 ## Tokens
 
-All colours are CSS custom properties on `:root` in `src/app/styles.css`
-(dark values first, light below). Never hard-code a colour in a component;
-add a token if one is missing.
+All colours are CSS custom properties on `:root` in `src/app/styles.css`.
+Never hard-code a colour in a component; add a token if one is missing.
 
-| token | dark | light | use |
-|---|---|---|---|
-| `--bg-canvas` | `#111111` | `#f7f7f7` | stage background (outside the map bounds) |
-| `--bg-sidebar` | `#0d0d0d` | `#f9f9f9` | sidebar |
-| `--surface` | `#1a1a1a` | `#ffffff` | pills, cards, panels, dialogs |
-| `--surface-2` | `#212121` | `#f4f4f4` | secondary buttons, toasts, inset areas |
-| `--surface-hover` | `#2a2a2a` | `#ececec` | hover, toggled-on buttons |
-| `--menu` | `#1f1f1f` | `#ffffff` | menus and popovers |
-| `--input` / `--input-border` | `#212121` / `#2f2f2f` | `#ffffff` / `#e0e0e0` | text inputs, selects |
-| `--border` | `#2a2a2a` | `#e5e5e5` | 1px borders of pills, cards, separators |
-| `--border-subtle` | `rgba(255,255,255,.06)` | `rgba(0,0,0,.06)` | sidebar edge, row separators |
-| `--text` | `#ececec` | `#0d0d0d` | primary text |
-| `--text-muted` | `#8e8e8e` | `#6b6b6b` | secondary text, idle icons |
-| `--text-faint` | `#5d5d5d` | `#a8a8a8` | hints, disabled-looking details |
-| `--dot` | `#262626` | `#d9d9d9` | canvas dot grid |
-| `--row-hover` / `--row-active` | `#1f1f1f` / `#2a2a2a` | `#efefef` / `#e5e5e5` | list rows (sidebar maps, layers, POIs) |
-| `--accent` | `#10a37f` | same | active tool, focus ring, primary buttons, on-state of toggles |
-| `--accent-soft` | teal at 16 % | teal at 12 % | focus halo, soft toggle background |
-| `--accent-yellow` | `#f5c542` | same | unsaved dot, drawing overlay, `idea` badge, warnings |
-| `--accent-red` | `#ef4444` | same | danger actions, `cut` badge, errors |
-| `--accent-blue` | `#3b82f6` | same | `slice` badge |
+| token | value | use |
+|---|---|---|
+| `--canvas` | `#18181b` | stage and window background |
+| `--dot` | `#2c2c33` | the one ink of the canvas: ISOM area patterns (`--terrain`) and point symbols (`--topo`) |
+| `--panel` (= `--surface`) | `#232328` | side panels, pills, tool stacks, cards, floating panels |
+| `--dialog` / `--menu` | `#25252b` / `#2d2d34` | dialogs / menus, popovers, toasts |
+| `--input` | `#1b1b1f` | text inputs, dropdown buttons |
+| `--surface-2` | `#1d1d21` | inset areas: segmented controls, read-out tiles, code |
+| `--seg-on` | `#3b3b43` | the selected segment of a segmented control |
+| `--border` / `--border-subtle` / `--border-hover` | white at 10 / 6 / 16 % | borders, dashed separators |
+| `--row-hover` / `--row-active` | white at 6 / 10 % | hover, list rows, the current row |
+| `--text` / `--text-muted` / `--text-faint` | `#f4f4f6` / `#b9b9c3` / `#85858f` | text, idle icons, hints |
+| `--ink` | `#1c1917` | dark text on bright fills (stickers, the primary button) |
+| `--brand` (= `--yellow`) | `#ffd23f` | primary buttons, the active tool, the logo, the add button |
+| `--select` | `#0d99ff` | focus rings, selection on the map, the minimap viewport, selection count |
+| `--blue` | `#4fb3ff` | toggles that are on (`--blue-soft` behind), links, `slice` badge |
+| `--green` | `#3ddc97` | visible layer (dock power), checks in menus, `approved` badge, toast ok |
+| `--amber` | `#ffb547` | unsaved dot, warnings, toast warn |
+| `--red` | `#ff6b5e` | danger, errors, toast error |
+| `--violet` `--orange` `--pink` `--grey` | | tags, calibration points (pink), `cut` badge (grey) |
+| `--sticky-1…4` | yellow, blue, mint, pink | sticky notes (the Mesh Terrain answer) |
 
-Semantic accents are **sparse**: tool underlines, status badges, toasts'
-status dot, danger buttons. Everything else is grey.
+Soft variants (`--select-ring`, `--select-soft`, `--blue-soft`, `--green-soft`,
+`--red-soft`, `--amber-soft`) are the colour mixed into transparency.
 
-Radii: pills `--radius-pill` 14px (tool stacks are fully round), cards and
-panels `--radius-card` 14px, menus `--radius-menu` 10px, controls
-`--radius-ctl` 8px, icon buttons 10px (round in tool stacks and the FAB).
-Shadow: `--shadow` `0 4px 16px rgba(0,0,0,.4)` on everything that floats,
-`--shadow-lg` for menus, dialogs and dragged panels.
+Corners are square everywhere (the colour wheel, its thumbs and the cursor dot
+stay round). Panels float with `--shadow-float`; menus, dialogs and dragged
+panels use `--shadow-lg`; plain blocks `--shadow`. Bright fills (the primary
+button, the active tool, active dock chips, badges) get `--key`, a 2px darker
+bottom edge, so they read as keys and stickers.
 
-Type: `--font` = `ui-sans-serif, -apple-system, "Segoe UI", Inter, Roboto,
-sans-serif`, 13px base; 12px for secondary text, 11–11.5px for hints and
-read-outs; `--mono` for coordinates, ids and file paths. Weights: 400 and 600
-only.
+Character: `--wiggle` (1) scales every tilt — stickers and the active tool sit
+at −3…−4°, the logo at −6°, hovered icons turn −8° and grow 8 %; motion uses
+`--spring` (an overshooting cubic-bezier). `prefers-reduced-motion` turns
+animation off.
+
+Type: `--font` = Rubik (400 / 500 / 600 / 700, from Google Fonts), 13px base;
+12px for secondary text, 11–11.5px for read-outs; `--mono` for coordinates,
+ids and file paths. `--hand` = Caveat 600 for **section labels and hints
+only** — sidebar "Maps", Inspector section headings, POI list sections, menu
+headings, panel and field hints, empty states, the drop hint. Never use it for
+values, buttons or anything the user has to read precisely.
 
 ## Icons
 
 Every UI icon lives in `src/app/ui/icons.js`: lucide-style inline SVG on a
-24×24 grid, `stroke="currentColor"`, 1.5px stroke, round caps and joins,
+24×24 grid, `stroke="currentColor"`, 1.75px stroke, round caps and joins,
 rendered at 16px. Use `icon(name)` (element) or `iconSvg(name)` (markup).
 Icons take their colour from the button (`--text-muted` idle, `--text` on
-hover, `--on-accent` when active). Map symbols (POI icons) are different —
+hover, `--ink` on a yellow fill). Map symbols (POI icons) are different —
 they live in `core/render-svg.js` because exports need them.
 
 ## Layout
 
 ```
-┌ sidebar 220px ┐┌ stage (full-bleed canvas, dot grid) ─────────────────────────┐┌ right sidebar 320px ┐
+┌ sidebar 232px ┐┌ stage (full-bleed canvas, ISOM pattern) ───────────────────┐┌ right sidebar 332px ┐
 │ IluMap    [◧] ││ [title · save]   [Layers │ ▦ T ▣ │ Export▾]      [↶ ↷ │ ◨] ││ ◎ Points          7 │
 │ New map       ││                                                            ││ [search…]       [+] │
 │ Search maps   ││ (●)  ┌ Layers ─┐                                           ││ statuses types zones│
@@ -81,33 +87,50 @@ they live in `core/render-svg.js` because exports need them.
 └───────────────┘└────────────────────────────────────────────────────────────┘└─────────────────────┘
 ```
 
-* **Sidebar** (`#sidebar`, `ui/sidebar.js`): 220px, `--bg-sidebar`, 1px
-  `--border-subtle` right edge. Head: app name + collapse button. Items
-  (36px rows, 16px icon + label): New map, Search maps (reveals an inline
-  input; `Ctrl+K`), Open file. Section label "Maps" (12px, muted). Map rows:
-  one line, ellipsis, hover `--row-hover`, active `--row-active`, a link icon
+* **Sidebar** (`#sidebar`, `ui/sidebar.js`): 232px (212px below a 1280px
+  window) including the 10px of canvas around it — a `--panel` card floating
+  on the canvas, 1px `--border-subtle`, `--shadow-float`. Head: the logo (a
+  tilted yellow sticker, `.brand-logo`) with the app name + collapse button.
+  Items (36px rows, 16px icon + label): New map, Search maps (reveals an
+  inline input; `Ctrl+K`), Open file. Section label "Maps" (hand-written).
+  Map rows: one line, ellipsis, hover `--row-hover`, active `--row-active`
+  with a 2px yellow edge on the left, a link icon
   when the map is linked to a file, a "⋯" button (visible on hover / active)
   and a right-click menu: Rename, Duplicate, Export JSON, Delete (confirm).
   Settings is pinned to the bottom, with the language switcher next to it: a
   28px outlined pill (globe icon + `RU` / `EN`, 11.5px semibold) that opens a
-  menu headed "Language" listing Русский, then English, with a teal check on
-  the active one. `Ctrl+B` collapses the sidebar; a round FAB in the stage's
+  menu headed "Language" listing Русский, then English, with a green check on
+  the active one. `Ctrl+B` collapses the sidebar; a square FAB in the stage's
   top-left corner reopens it, and while it is collapsed a Settings gear
   appears at the end of the zoom pill (Settings has the language select too).
-* **Right sidebar** (`#rightbar`, `ui/rightbar.js`): docked, not floating;
-  320px (284px below a 1280px window), `--bg-sidebar`, 1px `--border-subtle`
-  left edge. Top: **Points** (44px header with icon, title and count; the POI
+* **Right sidebar** (`#rightbar`, `ui/rightbar.js`): docked (it takes its
+  own column, the canvas never runs under it), drawn like the left sidebar —
+  a floating `--panel` card; 332px (296px below a 1280px window) including
+  the 10px of canvas around it. Top: **Points** (44px header with icon, title and count; the POI
   list with search, filters, the Unplaced section and drag-to-map). A 7px
-  **splitter** (row-resize, a 36px grab bar on hover, teal while dragging;
+  **splitter** (row-resize, a 36px grab bar on hover, blue while dragging;
   arrow keys when focused, double-click resets) divides it from the bottom
   part; the split is a UI pref, 36% by default. Bottom: a segmented **tab
   bar** (Inspector | Style) and the tab body. A new selection switches to
   Inspector; with nothing selected the Inspector shows the map settings. The
   top-right pill toggles the whole sidebar (`]`).
-* **Stage** (`#stage`): the SVG canvas fills it. The CSS dot grid (1px dots,
-  20–40px spacing, `--dot-size/x/y` updated by `canvas.js`) follows pan and
-  zoom. The map's ocean is drawn only inside `view.bounds`; the bounds edge is
-  a faint dashed line. Everything else is `.chrome`, absolutely positioned
+* **Stage** (`#stage`): the SVG canvas fills it. Its CSS background looks like
+  the empty part of an orienteering map, in ISOM symbols (the international
+  orienteering map standard), all in the one `--dot` ink:
+  * `--terrain` — a seamless 960px tile drawn once on start by
+    `ui/backdrop.js`: periodic value noise splits it into patches of four
+    area patterns with bare canvas between them (about half is covered):
+    310 marsh (staggered horizontal dashes), 213 sand (a dense scatter of
+    dots), 407 undergrowth (vertical stripes), 210 stony ground (dots and
+    small triangles). A slower noise picks the type, so a patch is mostly one
+    type. Seeded, so the tile is the same on every load.
+  * `--topo` — a 320px tile of ISOM point symbols on top: prominent large
+    tree (ring), boulder and large boulder (dots), pit (V), small depression
+    (half circle), special feature (×).
+
+  Both follow the pan (`--pan-x/y`, set by `canvas.js` modulo the 960px
+  tile) and keep their size when zooming, so nothing jumps. The map's ocean
+  is drawn only inside `view.bounds`; the bounds edge is a faint dashed line. Everything else is `.chrome`, absolutely positioned
   with a 12px margin from the stage edges:
   * top-left **title pill**: logo, map name (click / `F2` to rename inline),
     save button with the yellow unsaved dot; the tooltip says whether the map
@@ -120,18 +143,18 @@ they live in `core/render-svg.js` because exports need them.
     calibrate, fit, replace, remove), then the **Export** menu. The menu
     starts with a scope switch — *Whole map* / *Selection (n)* (disabled when
     nothing is selected, remembered in the UI prefs) — followed by JSON, SVG,
-    PNG, Masks, Copy as text, Save, Save as. On = `--surface-hover`.
+    PNG, Masks, Copy as text, Save, Save as. On = `--blue` on `--blue-soft`.
   * top-right **history pill**: undo / redo (tooltips name the step), a
     narrow chevron with the history list (current step checked, redo steps
     dimmed, click to jump), then the right-sidebar toggle.
-  * left **tool stack** (vertically centred): round pills separated by 8px:
+  * left **tool stack** (vertically centred): square pills separated by 8px:
     [Layers] · [Edit points, Move / scale, Pan] · [Line, Polygon, Wall, POI] · [Measure,
-    Calibrate, Delete]. Buttons are 32px circles; the active tool is filled
-    with `--accent`. Draw tools have a 2px underline in the colour of the
+    Calibrate, Delete]. Buttons are 32px squares; the active tool is a
+    yellow sticker (`--brand`, `--ink` icon, tilted −4°). Draw tools have a 3px underline in the colour of the
     layer they will draw into (`layer-meta.js` → `layerColor`, adjusted for
     contrast by `chromeTint`).
   * bottom-centre **layer dock**: power toggle (visibility of the active
-    layer; teal when visible), the layer name + "n features · new: type",
+    layer; green when visible), the layer name + "n features · new: type",
     one 28px chip per layer (2-letter abbreviation, 2px ring in the layer
     colour, filled when active, dashed + faded when hidden), the type for new
     features and a colour swatch (edits the layer colour, or the zone / POI
@@ -139,26 +162,26 @@ they live in `core/render-svg.js` because exports need them.
     tool that fits the layer; the POIs chip picks the POI tool. It is centred
     in the free space between the minimap and the zoom pill.
   * bottom-left: **scale bar** above the **minimap** card (180×120, the map
-    rendered by `render-svg.js` into an `<img>`, the viewport as a teal
+    rendered by `render-svg.js` into an `<img>`, the viewport as a blue
     rectangle; click / drag / wheel to navigate).
-  * bottom-right **zoom pill**: snap and flipY toggles (teal when on), zoom
+  * bottom-right **zoom pill**: snap and flipY toggles (blue when on), zoom
     − / % / +, fit, keyboard shortcuts (and Settings while the sidebar is
     collapsed). The **cursor read-out** (coordinates in mono, land / water ·
-    zone, selection count in teal) sits just above it.
+    zone, selection count in `--select` blue) sits just above it.
   * above the dock: the **tool HUD** — the tool's live status only (what
     Edit is editing, lengths, scale %).
   * top right under the history pill: the active tool's **shortcuts**, one
     per line, right-aligned (action muted, keys in bold); the line of a held
-    modifier (Ctrl / Alt / Shift) lights up in teal. Hidden on narrow stages.
+    modifier (Ctrl / Alt / Shift) lights up as a yellow sticker. Hidden on narrow stages.
     No text follows the cursor — hover feedback is drawn on the map only.
 * **Layers panel** (`ui/floating-panel.js`): the one floating card — 42px
   header (icon, title, close) and a scrolling body, max height 70vh, docked
   next to the tool stack. Dragging the header floats it (position saved in
   the UI prefs); double-clicking the header docks it again.
 * **Dropdowns** (`ui/select.js`): every `<select>` is shown as a button styled
-  like the inputs (label + chevron, accent ring when focused or open) and
+  like the inputs (label + chevron, blue ring when focused or open) and
   opens the app's own menu (`.sel-menu`: at least as wide as the button,
-  scrolls above 360px, the current value checked in teal). The native
+  scrolls above 360px, the current value checked in green). The native
   `<select>` stays hidden in the DOM as the source of truth, so native OS
   pop-ups never appear. Add `data-native` to a `<select>` to opt out. Menus sit
   above dialogs; Escape closes the menu first, then the dialog.
@@ -184,7 +207,7 @@ they live in `core/render-svg.js` because exports need them.
   highlight and keep the grab cursor.
 * **POI icon picker** (`ui/poi-icons.js`): a 300px popover with the map
   symbols in groups (places, services, transport, industry, nature, markers;
-  7-column grids of 36px cells, selected = teal ring, scrolls above 440px); from the
+  7-column grids of 36px cells, selected = blue ring, scrolls above 440px); from the
   Inspector it starts with a "From type (…)" row that clears the override.
 
 The chrome on the canvas reacts to the width of the stage (a CSS size
@@ -195,35 +218,47 @@ a second row and the dock hides its chips.
 
 ## Components
 
-* **Pill** (`.pill`): `--surface`, 1px `--border`, radius 14px, `--shadow`,
-  4px padding, 2px gap. Separators are 1×18px `--border` lines (`.pill-sep`).
+* **Pill** (`.pill`): `--panel`, 1px `--border-subtle`, `--shadow-float`,
+  4px padding, 2px gap. Separators are 18px dashed `--border` lines
+  (`.pill-sep`).
 * **Icon button** (`.icon-btn`, `.tb-btn`): 32×32, transparent, icon in
-  `--text-muted`; hover `--surface-hover` + `--text`; `.on` for toggles;
-  `.toggle.on` = teal icon on `--accent-soft`. Always give it a `title` and an
-  `aria-label`; toggles also set `aria-pressed`.
-* **Button** (`.btn`): 32px (`.btn-small` 28px), `--surface-2`, 1px
-  `--border`, radius 8px. `.btn-primary` = `--accent` fill, white text;
-  `.btn-danger` = red text (red fill inside dialogs' action row).
-* **Inputs**: `--input` background, 1px `--input-border`, radius 8px, 32px
-  high; focus = `--accent` border + 3px `--accent-soft` ring.
-* **Menu / popover** (`ui/menu.js`): `--menu`, 1px border, radius 10px,
-  `--shadow-lg`, 4px padding; items 34px, icon + label + optional `kbd`,
-  hover `--surface-hover`, danger items red. Arrow keys move, Escape closes.
-* **Dialog** (`openDialog` in `dom.js`): `--surface`, radius 16px, header with
-  title and close button, fields stacked, actions right-aligned (Cancel,
-  then the primary / danger action).
-* **Toast**: `--surface-2` card, radius 12px, a status dot (teal ok, yellow
-  warn, red error), optional action buttons, bottom-right above the zoom
-  pill.
-* **Badges** (POI status): pill, 10.5px, the status colour on a 14 % tint:
-  idea yellow, approved teal, slice blue, cut red (struck through).
+  `--text-muted`; hover `--row-hover` + `--text` and the icon turns a little;
+  `.toggle.on` = `--blue` on `--blue-soft`; `.accent` = a yellow key (the
+  "+" next to the POI search). Always give it a `title` and an `aria-label`;
+  toggles also set `aria-pressed`.
+* **Button** (`.btn`): 32px (`.btn-small` 28px), transparent, 1px `--border`.
+  `.btn-primary` = `--brand` fill, `--ink` text, `--key` edge, pressed 1px
+  down; `.btn-danger` = red text (red fill with ink inside dialogs' action
+  row).
+* **Inputs**: `--input` background, 1px `--border` (`--border-hover` on
+  hover), 32px high; focus = `--select` border + 3px `--select-ring`.
+  Checkboxes, radios and ranges use `--brand`.
+* **Segmented control** (`.seg`, the Inspector | Style tab bar): `--surface-2`
+  track, the selected segment `--seg-on` with `--shadow`.
+* **Menu / popover** (`ui/menu.js`): `--menu`, 1px `--border`, `--shadow-lg`,
+  6px padding, springs in; items 34px, icon + label + optional `kbd`, hover
+  white at 8 %, danger items red, dashed separators, headings hand-written.
+  Arrow keys move, Escape closes.
+* **Dialog** (`openDialog` in `dom.js`): `--dialog`, 18px bold title with a
+  close button, fields stacked, actions right-aligned under a dashed line
+  (Cancel, then the primary / danger action); pops in, the backdrop blurs.
+* **Toast**: `--menu` card, a small tilted status square (green ok, amber
+  warn, red error), optional action buttons in `--brand`, bottom-right above
+  the zoom pill.
+* **Badges** (POI status) are stickers: solid fill, `--ink` text, tilted
+  −3°: idea yellow, approved green, slice blue, cut grey (struck through).
+  The Inspector's kind label (`.insp-kind`) is the same sticker in the
+  layer's colour.
+* **Sticky note**: the Mesh Terrain answer (`.tr-quad`) on `--sticky-1`, a
+  hand-written caption, tilted −1°.
 
 ## Canvas overlays
 
-Selection outlines, vertex handles and box selection use `--accent`;
-in-progress drawing and measurement use `--accent-yellow`; calibration points
-are pink (`#ff5d8f`) so they never read as map content. Overlays are drawn in
-`canvas.js` / the tools with stroke widths in screen pixels × `unitsPerPx`.
+Selection outlines, vertex handles, box selection and the Ctrl+click preview
+use `--select`; in-progress drawing and measurement use `--yellow`; the
+add-point preview is green, the delete preview red; calibration points are
+`--pink` so they never read as map content. Overlays are drawn in `canvas.js`
+/ the tools with stroke widths in screen pixels × `unitsPerPx`.
 
 ## Map style presets
 
@@ -270,7 +305,7 @@ from the sidebar pill or Settings, and applies immediately.
 
 ## Checklist for new UI
 
-1. Colours come from tokens; test both themes (Settings → Interface theme).
+1. Colours, corners, tilt and fonts come from the tokens; there is one look, no themes.
 2. Icons come from `ui/icons.js` (add new ones there, lucide geometry).
 3. Floating things carry `.chrome` (so POI drops over them are ignored) and
    the pill / card styling above.

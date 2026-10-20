@@ -26,7 +26,7 @@ export function mountTitlePill() {
   const input = h('input', { class: 'tp-input', name: 'map-name', autocomplete: 'off', spellcheck: 'false', hidden: true });
   const dot = h('span', { class: 'tp-dot', 'aria-hidden': 'true' });
   const saveBtn = h('button', { type: 'button', class: 'icon-btn tp-save', onclick: () => save() }, icon('save'), dot);
-  root.append(icon('logo'), name, input, saveBtn);
+  root.append(h('span', { class: 'brand-logo' }, icon('logo')), name, input, saveBtn);
 
   const startEdit = () => {
     input.value = store.doc.meta.name || t('common.untitled');

@@ -15,10 +15,10 @@ derived from that file.
 -->
 > _Screenshot coming soon — open the demo on GitHub Pages to see the editor._
 
-- **Human-friendly:** a calm, ChatGPT-style editor — a full-bleed canvas with
-  floating toolbars, a layer dock, a minimap and draggable panels (dark or
-  light theme) — with layers, smooth curves, a wall builder with towers and
-  gates, grid snapping, a measure tool, background-image calibration and
+- **Human-friendly:** a playful, FigJam-like editor (one dark look, shared
+  with IluBoard) — a full-bleed canvas with floating toolbars, a layer dock,
+  a minimap and draggable panels — with layers, smooth curves, a wall builder
+  with towers and gates, grid snapping, a measure tool, background-image calibration and
   undo/redo (named steps, a history list to jump back to any step, the
   selection comes back with each step; kept in memory for the session, never
   saved). Maps are drawn in the `graphite`, `blueprint` or `parchment`
@@ -122,9 +122,8 @@ memory for the session only.
   nature, markers). A single point can
   override its icon and colour in the Inspector.
 - **Settings** (bottom of the sidebar, `Ctrl+,`, or the gear in the zoom pill
-  while the sidebar is collapsed): language (Русский / English),
-  interface theme (System / Dark / Light), map style for new maps, coordinate
-  units, autosave, clearing local maps.
+  while the sidebar is collapsed): language (Русский / English), map style
+  for new maps, coordinate units, autosave, clearing local maps.
 - **Language:** the `RU` / `EN` pill next to Settings. The first launch follows
   the browser (Russian when any preferred language is Russian, otherwise
   English); the choice is remembered.
@@ -302,7 +301,7 @@ together with `masks.json` (Chrome / Edge).
 | `Delete` · arrows | Delete · nudge the selection (Edit tool: the selected points). Also: right-click an object on the map, in Layers or in Points → Delete; the trash icon on list rows; Delete in the Inspector. Every deletion is one undo step, and the notice has an Undo button |
 | `Ctrl+Z` / `Ctrl+Y` (`Ctrl+Shift+Z`) | Undo / redo (while drawing: remove the last point). Shortcuts work on any keyboard layout (Ctrl+Я = Ctrl+Z) and also while a panel field has focus with nothing typed in it |
 | `Ctrl+S` / `Ctrl+Shift+S` / `Ctrl+O` | Save to map.json / save as / open a map.json as a local map |
-| `Ctrl+B` · `Ctrl+K` · `Ctrl+,` | Show / hide the sidebar · search local maps · settings (language, theme) |
+| `Ctrl+B` · `Ctrl+K` · `Ctrl+,` | Show / hide the sidebar · search local maps · settings (language, map style) |
 | `G` · `/` · `?` · `F2` | Grid · search POIs · help · rename the map |
 | `[` · `]` · `T` | Layers panel · right sidebar · Mesh Terrain calculator |
 

@@ -376,7 +376,7 @@ export default {
 
   // --- панель «Стиль» ------------------------------------------------------------------------------
   'style.mapStyle': 'Стиль карты',
-  'style.hint': 'Цвета самой карты (сохраняются в map.json). Тема редактора — в настройках.',
+  'style.hint': 'Цвета самой карты (сохраняются в map.json).',
   'style.palette': 'Палитра',
   'style.ocean': 'Океан (в границах)',
   'style.labels': 'Подписи',
@@ -581,10 +581,6 @@ export default {
   'settings.title': 'Настройки',
   'settings.language': 'Язык',
   'settings.languageBoth': 'Язык / Language',
-  'settings.theme': 'Тема интерфейса',
-  'settings.themes.system': 'Как в системе',
-  'settings.themes.dark': 'Тёмная',
-  'settings.themes.light': 'Светлая',
   'settings.preset': 'Стиль новых карт',
   'settings.coordUnits': 'Координаты курсора',
   'settings.coordWorld': 'Мировые единицы (напр. см)',
@@ -631,7 +627,7 @@ export default {
   'shortcuts.selectAll': 'Выделить все объекты активного слоя',
   'shortcuts.sidebar': 'Показать / скрыть боковую панель',
   'shortcuts.searchMaps': 'Поиск карт',
-  'shortcuts.settings': 'Настройки (язык, тема)',
+  'shortcuts.settings': 'Настройки (язык, стиль карты)',
   'shortcuts.grid': 'Показать / скрыть сетку',
   'shortcuts.searchPois': 'Поиск точек',
   'shortcuts.panels': 'Панель «Слои» / правая панель',

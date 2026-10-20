@@ -107,15 +107,12 @@ const lum = ([r, g, b]) => {
 const mix = (a, b, t) => `#${a.map((v, i) => Math.round(v + (b[i] - v) * t).toString(16).padStart(2, '0')).join('')}`;
 
 /**
- * A map colour adjusted to stay visible on the UI chrome (very dark colours are
- * lifted on the dark theme, very light ones darkened on the light theme), plus
- * a readable text colour for a chip filled with it.
+ * A map colour adjusted to stay visible on the dark UI chrome (very dark
+ * colours are lifted), plus a readable text colour for a chip filled with it.
  */
 export function chromeTint(hex) {
   const c = rgb(hex);
-  const light = document.documentElement.dataset.uiTheme === 'light';
   let ring = mix(c, c, 0); // normalised #rrggbb
-  if (!light && lum(c) < 0.05) ring = mix(c, [255, 255, 255], 0.4);
-  if (light && lum(c) > 0.6) ring = mix(c, [0, 0, 0], 0.3);
-  return { ring, text: lum(rgb(ring)) > 0.3 ? '#111111' : '#ffffff' };
+  if (lum(c) < 0.05) ring = mix(c, [255, 255, 255], 0.4);
+  return { ring, text: lum(rgb(ring)) > 0.3 ? '#1c1917' : '#ffffff' };
 }

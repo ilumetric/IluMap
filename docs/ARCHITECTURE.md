@@ -214,9 +214,9 @@ formatLength(worldUnits, meta, opts?) -> "1.2 km", formatArea(worldUnits², meta
 
 The editor is a full-bleed SVG canvas with floating chrome on top of it and a
 collapsible project sidebar on the left (see `docs/DESIGN.md` for the look,
-tokens and component anatomy). The chrome's theme (System / Dark / Light,
-`data-ui-theme` on `<html>`) is independent of the map's style preset, which
-only colours map content.
+tokens and component anatomy). The chrome has one look (dark, no theme
+setting) and is independent of the map's style preset, which only colours map
+content.
 
 * `state.js` — single in-memory document + selection + tool state, undo/redo
   (`core/history.js`: every step is a patch of the changed items only — see
@@ -224,7 +224,7 @@ only colours map content.
   document differs from the file it was last read from / saved to), UI prefs
   in localStorage (panels, layer visibility/lock, snapping, …). Tiny event
   bus (`on` / `emit`): `doc`, `selection`, `layers`, `tool`, `view`, `dirty`,
-  `file`, `load`, `project`, `projects`, `panels`, `prefs`, `theme`, …
+  `file`, `load`, `project`, `projects`, `panels`, `prefs`, …
   Undo / redo: the history keeps an index of the committed document — one
   JSON string per top-level value (`meta`, `view`, `style`, `terrain`, …)
   and per item of the id-keyed collections (features of each layer, POIs),
@@ -264,9 +264,9 @@ only colours map content.
   import / switch / rename / duplicate / delete, background blobs, first
   launch, migration of the pre-projects localStorage draft.
 * `canvas.js` — SVG viewport: pan/zoom (world→screen transform), the ocean
-  rectangle inside the bounds (outside it the stage's CSS dot grid shows and
-  follows pan/zoom), calibrated background image, grid clipped to the
-  bounds, scale bar, layer groups, selection and vertex handles. Uses
+  rectangle inside the bounds (outside it the stage's backdrop — ISOM terrain
+  patches from `ui/backdrop.js` — shows and follows the pan), calibrated
+  background image, grid clipped to the bounds, scale bar, layer groups, selection and vertex handles. Uses
   `render-svg.js` for the layer content so exports match the screen.
 * `tools/` — one module per tool: select/move, pan, draw-line, draw-polygon,
   draw-wall, place-poi, measure, calibrate. Tools receive pointer events in
@@ -278,7 +278,8 @@ only colours map content.
   notes, colour, icon, points, wall
   towers/gates, links; shows the map settings — meta, bounds, grid,
   background — when nothing is selected), style (preset + per-type colours).
-* `ui/` — the chrome: `icons.js` (every UI icon, inline SVG), `sidebar.js`,
+* `ui/` — the chrome: `icons.js` (every UI icon, inline SVG), `backdrop.js`
+  (the stage background tile: ISOM terrain patches from noise), `sidebar.js`,
   `toolbar.js` (left tool stack, background popover), `rightbar.js` (docked
   right sidebar: POIs, splitter, Inspector / Style tabs), `poi-icons.js`
   (POI symbol previews and the icon picker),
@@ -297,7 +298,7 @@ only colours map content.
   script in `index.html`); switching re-renders every mounted component
   through `onLangChange` without touching the document, selection, undo
   history, panels or tool. See docs/DESIGN.md → Localisation.
-* `settings.js` — UI theme, language and the Settings dialog; `io.js` — save via the
+* `settings.js` — language and the Settings dialog; `io.js` — save via the
   File System Access API (download fallback), exports (JSON / SVG / PNG /
   masks / text), background image loading, POI placement.
 

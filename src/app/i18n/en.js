@@ -377,7 +377,7 @@ export default {
 
   // --- style panel ------------------------------------------------------------------------------
   'style.mapStyle': 'Map style',
-  'style.hint': 'Colours of the map itself (saved in map.json). The editor theme is in Settings.',
+  'style.hint': 'Colours of the map itself (saved in map.json).',
   'style.palette': 'Base palette',
   'style.ocean': 'Ocean (inside the bounds)',
   'style.labels': 'Labels',
@@ -582,10 +582,6 @@ export default {
   'settings.title': 'Settings',
   'settings.language': 'Language',
   'settings.languageBoth': 'Language / Язык',
-  'settings.theme': 'Interface theme',
-  'settings.themes.system': 'System',
-  'settings.themes.dark': 'Dark',
-  'settings.themes.light': 'Light',
   'settings.preset': 'Map style for new maps',
   'settings.coordUnits': 'Cursor coordinates',
   'settings.coordWorld': 'World units (e.g. cm)',
@@ -632,7 +628,7 @@ export default {
   'shortcuts.selectAll': 'Select all features of the active layer',
   'shortcuts.sidebar': 'Show / hide the sidebar',
   'shortcuts.searchMaps': 'Search maps',
-  'shortcuts.settings': 'Settings (language, theme)',
+  'shortcuts.settings': 'Settings (language, map style)',
   'shortcuts.grid': 'Toggle grid',
   'shortcuts.searchPois': 'Search POIs',
   'shortcuts.panels': 'Toggle the Layers panel / the right sidebar',

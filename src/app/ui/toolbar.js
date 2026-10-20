@@ -98,7 +98,6 @@ export function mountToolbar({ tools, activateTool, deleteSelection, panels }) {
   on('selection', update);
   on('new-type', update);
   on('panels', update);
-  on('theme', update);
   on('doc', (d) => { if (!d?.live) update(); });
   onLangChange(update);
   update();

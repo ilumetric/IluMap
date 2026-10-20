@@ -64,7 +64,7 @@ export function mountSidebar({ openSettings }) {
   }, icon('globe'), langCode);
 
   root.append(
-    h('div', { class: 'sb-head' }, h('div', { class: 'sb-brand' }, icon('logo'), h('span', {}, 'IluMap')), collapseBtn),
+    h('div', { class: 'sb-head' }, h('div', { class: 'sb-brand' }, h('span', { class: 'brand-logo' }, icon('logo')), h('span', {}, 'IluMap')), collapseBtn),
     h('nav', { class: 'sb-actions' }, newItem, searchItem, searchWrap, openItem, folderItem),
     mapsLabel,
     list,

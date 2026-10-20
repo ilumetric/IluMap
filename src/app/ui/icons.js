@@ -1,8 +1,8 @@
-// The one place for UI icons: inline SVG, lucide-style (24x24 grid, 1.5px
+// The one place for UI icons: inline SVG, lucide-style (24x24 grid, 1.75px
 // stroke, round caps), drawn with currentColor and rendered at 16px.
 // Map symbols (POI icons) live in core/render-svg.js, not here.
 
-const S = (body) => `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${body}</svg>`;
+const S = (body) => `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${body}</svg>`;
 
 export const ICONS = {
   // brand / navigation
